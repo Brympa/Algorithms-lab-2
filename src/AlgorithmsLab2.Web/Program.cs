@@ -22,5 +22,6 @@ builder.Services.AddSingleton<CatalogState>();
 builder.Services.AddScoped<HanoiPlaybackService>();
 builder.Services.AddScoped<CanvasRenderService>();
 builder.Services.AddScoped<HanoiCanvasService>();
+builder.Services.AddScoped<MiniChartService>();
 
 await builder.Build().RunAsync();

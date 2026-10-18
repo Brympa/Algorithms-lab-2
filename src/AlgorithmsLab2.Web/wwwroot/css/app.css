@@ -445,6 +445,29 @@ table.data th {
   font-weight: 500;
 }
 
+.selected-card {
+  border-color: rgba(91, 140, 255, 0.55);
+  box-shadow: 0 8px 32px rgba(91, 140, 255, 0.18);
+}
+
+.trace {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}
+
+.trace-row {
+  display: grid;
+  grid-template-columns: 48px 110px 1fr;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.card {
+  cursor: pointer;
+}
+
 /* canvas frame */
 .canvas-frame {
   width: 100%;

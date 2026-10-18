@@ -1,5 +1,8 @@
 @page "/team"
+@implements IAsyncDisposable
 @inject CatalogState Catalog
+@inject MiniChartService Chart
+@inject IJSRuntime Js
 
 <PageTitle>Командные алгоритмы</PageTitle>
 
@@ -7,48 +10,339 @@
     <div>
         <h1>Командные алгоритмы</h1>
         <p>
-            Доп. к лабе: каждый участник реализует рекурсивный алгоритм, замеряет время,
-            готовит справку и демо. Слоты без ФИО — main / slot-b / slot-c.
+            Доп. к лабе: каждый участник — свой рекурсивный алгоритм, замеры времени,
+            справка и демо. Слоты: <strong>main</strong> / <strong>slot-b</strong> / <strong>slot-c</strong> (без ФИО).
         </p>
     </div>
-    <span class="badge warn">3 слота</span>
+    <span class="badge accent">@_readyCount готово · @_total слотов</span>
 </header>
 
 <div class="card-grid">
-    @foreach (var algo in Catalog.Team.GetAll().OrderBy(a => a.Slot))
+    @foreach (var algo in _algos)
     {
-        <GlassCard Title="@algo.Name"
-                   Badge="@(algo.IsReady ? "готов" : "TODO")"
-                   BadgeClass="@(algo.IsReady ? "accent" : "warn")">
+        <div class="glass card @(algo.Id == _selectedId ? "selected-card" : "")" @onclick="() => Select(algo.Id)">
+            <div class="row" style="justify-content:space-between;align-items:center;">
+                <h3>@algo.Name</h3>
+                <span class="badge @(algo.IsReady ? "accent" : "warn")">@(algo.IsReady ? "готов" : "TODO")</span>
+            </div>
             <p>@algo.Description</p>
             <div class="stat-row">
                 <span class="stat-chip">@algo.Slot</span>
                 <span class="stat-chip">@algo.Complexity.Display</span>
             </div>
-            <div class="muted" style="font-size:12px;margin-top:8px;">
-                @algo.PracticalApplication
-            </div>
-        </GlassCard>
+        </div>
     }
 </div>
 
-<section class="glass panel" style="margin-top:16px;">
-    <h2>Main — Разбиение числа на слагаемые</h2>
-    <p class="muted">
-        Рекурсия Partition(n, max) → k + Partition(n−k, k). Неупорядоченные разбиения,
-        p(5)=7, p(10)=42. Замеры и демо — следующие этапы.
-    </p>
-    <div class="stat-row">
-        <span class="stat-chip">p(5) = 7</span>
-        <span class="stat-chip">p(10) = 42</span>
-        <span class="stat-chip">demo n ≤ 30</span>
-    </div>
-</section>
+@if (_selected is not null)
+{
+    <section class="glass panel" style="margin-top:16px;">
+        <h2>@_selected.Name <span class="badge">@_selected.Slot</span></h2>
+        <p>@_selected.Description</p>
+        <p class="muted">@_selected.PracticalApplication</p>
 
-<section class="glass panel">
-    <h2>Как добавить алгоритм</h2>
-    <p class="muted">
-        Заполните стаб <code>TeamAlgorithmSlotB</code> / <code>TeamAlgorithmSlotC</code>
-        (шаблон: <code>Core/Team/_TEMPLATE.md</code>). Контракты и UI не менять.
-    </p>
-</section>
+        <div class="stat-row">
+            <span class="stat-chip">Best: @_selected.Complexity.Best</span>
+            <span class="stat-chip">Avg: @_selected.Complexity.Average</span>
+            <span class="stat-chip">Worst: @_selected.Complexity.Worst</span>
+        </div>
+
+        @if (_selected.Sources.Count > 0)
+        {
+            <p class="muted" style="margin-top:8px;">
+                Источники: @string.Join(" · ", _selected.Sources)
+            </p>
+        }
+    </section>
+
+    @if (_selected.IsReady && _runner is not null)
+    {
+        <div class="row" style="align-items:stretch;">
+            <section class="glass panel" style="flex:1 1 320px;">
+                <h2>Демо</h2>
+                <div class="row">
+                    <div class="field">
+                        <label>n (разбиение)</label>
+                        <input type="number" min="0" max="30" value="@_demoN" @oninput="OnDemoN" />
+                    </div>
+                    <div class="field">
+                        <label>p(n)</label>
+                        <div class="stat-chip">@_pn</div>
+                    </div>
+                </div>
+                <div class="btn-row" style="margin-top:10px;">
+                    <button class="btn primary" disabled="@_demoBusy" @onclick="RunDemoAsync">Запустить демо</button>
+                    <button class="btn" @onclick="Cancel">Стоп</button>
+                </div>
+                <div class="trace" style="margin-top:12px;max-height:280px;overflow:auto;">
+                    @foreach (var step in _trace.Take(80))
+                    {
+                        <div class="trace-row">
+                            <span class="muted">#@step.Index</span>
+                            <strong>@step.Label</strong>
+                            <span>@step.Detail</span>
+                        </div>
+                    }
+                    @if (_trace.Count > 80)
+                    {
+                        <div class="muted">… ещё @(_trace.Count - 80)</div>
+                    }
+                </div>
+            </section>
+
+            <section class="glass panel" style="flex:1 1 320px;">
+                <h2>Замеры</h2>
+                <div class="row">
+                    <div class="field">
+                        <label>N min</label>
+                        <input type="number" value="@_nMin" @oninput="e => _nMin = ParseInt(e, 1)" />
+                    </div>
+                    <div class="field">
+                        <label>N max</label>
+                        <input type="number" value="@_nMax" @oninput="e => _nMax = ParseInt(e, 12)" />
+                    </div>
+                    <div class="field">
+                        <label>Итераций</label>
+                        <input type="number" min="1" max="20" value="@_iters" @oninput="e => _iters = ParseInt(e, 3)" />
+                    </div>
+                </div>
+                <div class="btn-row" style="margin-top:10px;">
+                    <button class="btn primary" disabled="@_benchBusy" @onclick="RunBenchAsync">Замерить</button>
+                    <button class="btn" @onclick="Cancel">Стоп</button>
+                </div>
+                <div style="margin-top:12px;height:240px;">
+                    <canvas @ref="_chartCanvas" style="width:100%;height:240px;"></canvas>
+                </div>
+                <table class="data" style="margin-top:10px;">
+                    <thead>
+                        <tr><th>n</th><th>мс</th><th>шаги</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in _points.TakeLast(12))
+                        {
+                            <tr>
+                                <td>@p.N</td>
+                                <td>@p.ElapsedMs.ToString("0.###")</td>
+                                <td>@p.Steps</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+        </div>
+    }
+    else if (!_selected.IsReady)
+    {
+        <section class="glass panel">
+            <h2>Стаб на доработку</h2>
+            <p class="muted">
+                Реализуйте <code>RunAsync</code> и <code>DemoAsync</code> в
+                <code>Core/Team/Algorithms/@(GetStubFileName(_selected.Id))</code>
+                (шаблон: <code>Team/_TEMPLATE.md</code>). UI уже готов.
+            </p>
+        </section>
+    }
+
+    @if (_status is not null)
+    {
+        <p class="muted" style="margin:12px 0;">@_status</p>
+    }
+}
+
+@code {
+    private List<ITeamAlgorithm> _algos = new();
+    private ITeamAlgorithm? _selected;
+    private IRecursiveAlgorithm? _runner;
+    private string? _selectedId;
+
+    private int _demoN = 5;
+    private int _nMin = 1;
+    private int _nMax = 12;
+    private int _iters = 3;
+    private long _pn;
+
+    private bool _demoBusy;
+    private bool _benchBusy;
+    private readonly List<TraceStep> _trace = new();
+    private readonly List<BenchmarkPoint> _points = new();
+    private string? _status;
+    private ElementReference _chartCanvas;
+    private bool _chartReady;
+
+    private int _readyCount;
+    private int _total;
+
+    private CancellationTokenSource? _cts;
+
+    protected override void OnInitialized()
+    {
+        _algos = Catalog.Team.GetAll().OrderBy(a => a.Slot == "main" ? 0 : 1).ThenBy(a => a.Slot).ToList();
+        _total = _algos.Count;
+        _readyCount = _algos.Count(a => a.IsReady);
+        var firstReady = _algos.FirstOrDefault(a => a.IsReady) ?? _algos.FirstOrDefault();
+        if (firstReady is not null)
+            Select(firstReady.Id);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Chart.CreateAsync(_chartCanvas);
+            _chartReady = true;
+        }
+    }
+
+    private void Select(string id)
+    {
+        _selectedId = id;
+        _selected = _algos.FirstOrDefault(a => a.Id == id);
+        _runner = _selected is null ? null : Catalog.Team.GetRunner(id);
+        _trace.Clear();
+        _points.Clear();
+        _status = null;
+        if (_selected is IntegerPartitionsAlgorithm)
+        {
+            _pn = CountP(_demoN);
+        }
+        else
+        {
+            _pn = 0;
+        }
+    }
+
+    private long CountP(int n)
+    {
+        var algo = Catalog.Team.Get("team-integer-partitions") as IntegerPartitionsAlgorithm;
+        return algo?.CountPartitions(Math.Clamp(n, 0, 30)) ?? 0;
+    }
+
+    private void OnDemoN(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var n))
+        {
+            _demoN = Math.Clamp(n, 0, 30);
+            if (_selected?.Id == "team-integer-partitions")
+                _pn = CountP(_demoN);
+        }
+    }
+
+    private static int ParseInt(ChangeEventArgs e, int fallback) =>
+        int.TryParse(e.Value?.ToString(), out var v) ? v : fallback;
+
+    private async Task RunDemoAsync()
+    {
+        if (_runner is null)
+            return;
+
+        Cancel();
+        _cts = new CancellationTokenSource();
+        _demoBusy = true;
+        _trace.Clear();
+        _status = "Демо…";
+        StateHasChanged();
+
+        try
+        {
+            await foreach (var step in _runner.DemoAsync(new DemoRequest(_demoN), _cts.Token))
+            {
+                _trace.Add(step);
+                if (_trace.Count % 16 == 0)
+                {
+                    StateHasChanged();
+                    await Task.Yield();
+                }
+            }
+            _status = $"Демо готово · шагов {_trace.Count}";
+        }
+        catch (OperationCanceledException)
+        {
+            _status = "Демо отменено";
+        }
+        catch (Exception ex)
+        {
+            _status = $"Демо: {ex.Message}";
+        }
+        finally
+        {
+            _demoBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RunBenchAsync()
+    {
+        if (_runner is null)
+            return;
+
+        Cancel();
+        _cts = new CancellationTokenSource();
+        _benchBusy = true;
+        _points.Clear();
+        _status = "Замеры…";
+        StateHasChanged();
+
+        var request = new BenchmarkRequest(
+            Math.Max(0, _nMin),
+            Math.Max(_nMin, _nMax),
+            1,
+            Math.Clamp(_iters, 1, 20));
+
+        try
+        {
+            await foreach (var p in _runner.RunAsync(request, _cts.Token))
+            {
+                _points.Add(p);
+                StateHasChanged();
+                await Task.Yield();
+            }
+
+            if (_chartReady)
+            {
+                var pts = _points.Select(p => ((double)p.N, p.ElapsedMs)).ToList();
+                await Chart.DrawAsync(_chartCanvas, pts, new ChartOptions(
+                    LineColor: "#5b8cff",
+                    PointColor: "#7cffcb",
+                    Title: "Среднее время от n (мс)",
+                    XLabel: "n",
+                    YLabel: "ms",
+                    YLogScale: false));
+            }
+
+            _status = $"Замеры готовы · точек {_points.Count}";
+        }
+        catch (OperationCanceledException)
+        {
+            _status = "Замеры отменены";
+        }
+        catch (Exception ex)
+        {
+            _status = $"Замеры: {ex.Message}";
+        }
+        finally
+        {
+            _benchBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+    }
+
+    private static string GetStubFileName(string id) => id switch
+    {
+        "team-slot-b" => "TeamAlgorithmSlotB.cs",
+        "team-slot-c" => "TeamAlgorithmSlotC.cs",
+        _ => "IntegerPartitionsAlgorithm.cs"
+    };
+
+    public ValueTask DisposeAsync()
+    {
+        Cancel();
+        return ValueTask.CompletedTask;
+    }
+}
