@@ -1,0 +1,47 @@
+@implements IAsyncDisposable
+@inject HanoiCanvasService HanoiCanvas
+
+<div class="canvas-wrap @CssClass" style="@Style">
+    <canvas @ref="_canvas"></canvas>
+</div>
+
+@code {
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public string? Style { get; set; }
+    [Parameter] public EventCallback Hosted { get; set; }
+
+    private ElementReference _canvas;
+    private bool _ready;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await HanoiCanvas.CreateAsync(_canvas);
+            _ready = true;
+            await Hosted.InvokeAsync();
+        }
+    }
+
+    public Task LoadAsync(int disks, IReadOnlyList<HanoiMove> moves) =>
+        HanoiCanvas.LoadMovesAsync(_canvas, disks, moves);
+
+    public Task SetIndexAsync(int index) =>
+        HanoiCanvas.SetIndexAsync(_canvas, index);
+
+    public bool IsReady => _ready;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_ready)
+        {
+            try
+            {
+                await HanoiCanvas.DisposeAsync(_canvas);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+}
