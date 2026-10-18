@@ -20,5 +20,6 @@ builder.Services.AddSingleton(team);
 builder.Services.AddSingleton(hanoi);
 builder.Services.AddSingleton<CatalogState>();
 builder.Services.AddScoped<HanoiPlaybackService>();
+builder.Services.AddScoped<CanvasRenderService>();
 
 await builder.Build().RunAsync();

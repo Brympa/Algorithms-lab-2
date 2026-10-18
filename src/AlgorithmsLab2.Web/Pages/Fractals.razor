@@ -1,5 +1,7 @@
 @page "/fractals"
+@implements IAsyncDisposable
 @inject CatalogState Catalog
+@inject CanvasRenderService CanvasService
 
 <PageTitle>Фракталы — Кривая Госпера</PageTitle>
 
@@ -8,107 +10,230 @@
         <h1>Фракталы</h1>
         <p>
             Задание 1. Кривая Госпера строится <strong>рекурсивно</strong>:
-            порядок n состоит из 7 кривых порядка n−1. Сегментов: 7<sup>n</sup>.
+            порядок n — 7 кривых n−1. Сегментов: 7<sup>n</sup>. Рендер — Canvas, данные — TypedArray.
         </p>
     </div>
-    <span class="badge accent">Рекурсия</span>
+    <span class="badge accent">Рекурсия · Canvas</span>
 </header>
 
 @if (_generator is null)
 {
     <div class="glass panel">Генератор не зарегистрирован.</div>
+    return;
 }
-else
-{
-    <section class="glass panel">
-        <h2>@_generator.Name</h2>
-        <p class="muted">@_generator.Description</p>
 
-        <div class="row" style="margin-top:12px;">
-            <div class="field">
-                <label>Порядок n = @_order</label>
-                <input type="range" min="0" max="@_generator.MaxOrder" step="1" value="@_order"
-                       @oninput="OnOrderInput" />
-            </div>
-            <div class="field">
-                <label>Сегментов (7^n)</label>
-                <div class="stat-chip">@_segments.ToString("N0")</div>
-            </div>
-            <div class="field">
-                <label>Ограничение</label>
-                <div class="stat-chip">max n = @_generator.MaxOrder</div>
-            </div>
+<section class="glass panel">
+    <h2>@_generator.Name</h2>
+    <p class="muted">@_generator.Description</p>
+
+    <div class="row" style="margin-top:12px;">
+        <div class="field" style="min-width:220px;">
+            <label>Порядок n = @_order (max @_generator.MaxOrder)</label>
+            <input type="range" min="0" max="@_maxOrder" step="1" value="@_order"
+                   @oninput="OnOrderInput" />
         </div>
-
-        <div class="btn-row" style="margin-top:12px;">
-            <button class="btn primary" @onclick="Generate">Построить</button>
-            <button class="btn" @onclick="Reset">Сброс</button>
+        <div class="field">
+            <label>Толщина</label>
+            <input type="range" min="0.5" max="4" step="0.1" value="@_lineWidth"
+                   @oninput="OnWidthInput" />
         </div>
+        <div class="field">
+            <label>Сегментов</label>
+            <div class="stat-chip">@_segments.ToString("N0")</div>
+        </div>
+        <div class="field">
+            <label>Генерация</label>
+            <div class="stat-chip">@_genMs.ToString("0.0") мс</div>
+        </div>
+        <div class="field">
+            <label>Рендер</label>
+            <div class="stat-chip">@_drawMs.ToString("0.0") мс</div>
+        </div>
+    </div>
 
-        @if (_status is not null)
-        {
-            <p class="muted" style="margin-top:12px;">@_status</p>
-        }
-    </section>
+    <div class="btn-row" style="margin-top:12px;">
+        <button class="btn primary" disabled="@_busy" @onclick="GenerateAsync">Построить</button>
+        <button class="btn" disabled="@(_geometry is null)" @onclick="ExportAsync">PNG</button>
+        <button class="btn" @onclick="ResetAsync">Сброс</button>
+    </div>
 
-    <section class="glass panel">
-        <h2>Геометрия (Core)</h2>
-        <p class="muted">
-            Рекурсивный генератор готов (этап 1). Canvas-рендер Path2D + Float32Array — этап 2.
-        </p>
-        @if (_geometry is not null)
-        {
-            <div class="stat-row">
-                <span class="stat-chip">points: @_geometry.PointCount</span>
-                <span class="stat-chip">bbox: [@_geometry.Bounds.MinX:F2, @_geometry.Bounds.MinY:F2] … [@_geometry.Bounds.MaxX:F2, @_geometry.Bounds.MaxY:F2]</span>
-            </div>
-        }
-    </section>
-}
+    @if (_status is not null)
+    {
+        <p class="muted" style="margin-top:12px;">@_status</p>
+    }
+</section>
+
+<section class="glass panel" style="padding:12px;">
+    <div class="canvas-frame">
+        <CanvasHost @ref="_canvasHost" Style="width:100%;height:480px;" Hosted="OnCanvasHosted" />
+    </div>
+</section>
 
 @code {
     private IFractalGenerator? _generator;
-    private int _order = 3;
-    private long _segments = 0;
+    private CanvasHost? _canvasHost;
     private FractalGeometry? _geometry;
+
+    private int _order = 3;
+    private int _maxOrder = 5;
+    private double _lineWidth = 1.5;
+    private long _segments = 1;
+    private double _genMs;
+    private double _drawMs;
+    private bool _busy;
+    private bool _hostReady;
     private string? _status;
+
+    private CancellationTokenSource? _debounceCts;
 
     protected override void OnInitialized()
     {
         _generator = Catalog.Fractals.Get("gosper") ?? Catalog.Fractals.GetAll().FirstOrDefault();
+        if (_generator is not null)
+        {
+            _order = _generator.DefaultOrder;
+            _maxOrder = _generator.MaxOrder;
+        }
         UpdateSegments();
+    }
+
+    private async Task OnCanvasHosted()
+    {
+        _hostReady = true;
+        if (_geometry is not null)
+            await RedrawAsync();
     }
 
     private void OnOrderInput(ChangeEventArgs e)
     {
-        if (int.TryParse(e.Value?.ToString(), out var n))
+        if (!int.TryParse(e.Value?.ToString(), out var n))
+            return;
+
+        _order = n;
+        UpdateSegments();
+        _ = DebouncedGenerateAsync();
+    }
+
+    private void OnWidthInput(ChangeEventArgs e)
+    {
+        if (!double.TryParse(e.Value?.ToString(), out var w))
+            return;
+        _lineWidth = w;
+        _ = RedrawAsync();
+    }
+
+    /// <summary>Debounce слайдера: не генерируем на каждый input.</summary>
+    private async Task DebouncedGenerateAsync()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+        _debounceCts = new CancellationTokenSource();
+        var ct = _debounceCts.Token;
+
+        try
         {
-            _order = n;
-            UpdateSegments();
+            await Task.Delay(80, ct);
+            if (!ct.IsCancellationRequested)
+                await GenerateAsync();
+        }
+        catch (TaskCanceledException)
+        {
         }
     }
 
     private void UpdateSegments()
     {
-        _segments = _order <= 0 ? 1 : (long)Math.Pow(7, _order);
+        _segments = _order <= 0 ? 1 : (long)Math.Pow(7, Math.Min(_order, 6));
     }
 
-    private void Generate()
+    private async Task GenerateAsync()
     {
-        if (_generator is null)
+        if (_generator is null || _busy)
+            return;
+
+        _busy = true;
+        _status = "Генерация…";
+        StateHasChanged();
+
+        try
+        {
+            int order = Math.Clamp(_order, 0, _maxOrder);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            // Core — чистая рекурсия. На WASM один поток: yield, чтобы UI успел перерисоваться.
+            _geometry = _generator.Generate(new FractalRequest(order));
+            await Task.Yield();
+
+            sw.Stop();
+            _genMs = sw.Elapsed.TotalMilliseconds;
+            UpdateSegments();
+
+            await RedrawAsync();
+            _status = $"Готово · n={order} · точек {_geometry.PointCount:N0} · gen {_genMs:0.0} мс · draw {_drawMs:0.0} мс";
+        }
+        catch (OperationCanceledException)
+        {
+            _status = "Отменено";
+        }
+        catch (Exception ex)
+        {
+            _status = $"Ошибка: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RedrawAsync()
+    {
+        if (_geometry is null || _canvasHost is null || !_hostReady)
             return;
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        _geometry = _generator.Generate(new FractalRequest(_order));
+        var options = new DrawOptions(
+            LineColor: "#5b8cff",
+            LineWidth: _lineWidth,
+            Background: "rgba(0,0,0,0)",
+            Pad: 28,
+            Glow: "rgba(124,255,203,0.55)",
+            Progress: 1.0);
+
+        await _canvasHost.DrawAsync(_geometry.Xy, options);
         sw.Stop();
-        _status = $"Готово за {sw.Elapsed.TotalMilliseconds:F1} мс · точек {_geometry.PointCount:N0} · сегментов {Math.Pow(7, _order):N0}";
+        _drawMs = sw.Elapsed.TotalMilliseconds;
     }
 
-    private void Reset()
+    private async Task ExportAsync()
     {
+        if (_canvasHost is null)
+            return;
+        await _canvasHost.ExportPngAsync($"gosper-n{_order}.png");
+    }
+
+    private async Task ResetAsync()
+    {
+        _debounceCts?.Cancel();
         _geometry = null;
         _status = null;
         _order = _generator?.DefaultOrder ?? 3;
+        _genMs = 0;
+        _drawMs = 0;
         UpdateSegments();
+        if (_canvasHost is not null && _hostReady)
+        {
+            await _canvasHost.DrawAsync(
+                ReadOnlyMemory<float>.Empty,
+                new DrawOptions("#5b8cff", _lineWidth, "rgba(0,0,0,0)", 28, null, 1));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+        if (_canvasHost is not null)
+            await _canvasHost.DisposeAsync();
     }
 }

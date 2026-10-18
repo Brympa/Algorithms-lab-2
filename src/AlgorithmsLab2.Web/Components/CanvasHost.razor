@@ -1,0 +1,48 @@
+@implements IAsyncDisposable
+@inject CanvasRenderService Canvas
+
+<div class="canvas-wrap @CssClass" style="@Style">
+    <canvas @ref="_canvas"></canvas>
+</div>
+
+@code {
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public string? Style { get; set; }
+
+    private ElementReference _canvas;
+    private bool _hosted;
+
+    public ElementReference CanvasElement => _canvas;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Canvas.CreateHostAsync(_canvas);
+            _hosted = true;
+            await Hosted.InvokeAsync();
+        }
+    }
+
+    [Parameter] public EventCallback Hosted { get; set; }
+
+    public Task DrawAsync(ReadOnlyMemory<float> xy, DrawOptions options) =>
+        Canvas.DrawPolylineAsync(_canvas, xy, options);
+
+    public Task ExportPngAsync(string fileName) =>
+        Canvas.ExportPngAsync(_canvas, fileName);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hosted)
+        {
+            try
+            {
+                await Canvas.DisposeHostAsync(_canvas);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+}

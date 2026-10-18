@@ -445,7 +445,28 @@ table.data th {
   font-weight: 500;
 }
 
-/* reduced transparency / motion fallback */
+/* canvas frame */
+.canvas-frame {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(600px 300px at 50% 0%, rgba(91, 140, 255, 0.08), transparent 70%),
+    rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.canvas-wrap {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+}
+
+.canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 @media (prefers-reduced-transparency: reduce) {
   .glass,
   .glass-nav,
