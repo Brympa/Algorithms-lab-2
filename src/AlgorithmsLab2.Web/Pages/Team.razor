@@ -1,0 +1,54 @@
+@page "/team"
+@inject CatalogState Catalog
+
+<PageTitle>Командные алгоритмы</PageTitle>
+
+<header class="page-header">
+    <div>
+        <h1>Командные алгоритмы</h1>
+        <p>
+            Доп. к лабе: каждый участник реализует рекурсивный алгоритм, замеряет время,
+            готовит справку и демо. Слоты без ФИО — main / slot-b / slot-c.
+        </p>
+    </div>
+    <span class="badge warn">3 слота</span>
+</header>
+
+<div class="card-grid">
+    @foreach (var algo in Catalog.Team.GetAll().OrderBy(a => a.Slot))
+    {
+        <GlassCard Title="@algo.Name"
+                   Badge="@(algo.IsReady ? "готов" : "TODO")"
+                   BadgeClass="@(algo.IsReady ? "accent" : "warn")">
+            <p>@algo.Description</p>
+            <div class="stat-row">
+                <span class="stat-chip">@algo.Slot</span>
+                <span class="stat-chip">@algo.Complexity.Display</span>
+            </div>
+            <div class="muted" style="font-size:12px;margin-top:8px;">
+                @algo.PracticalApplication
+            </div>
+        </GlassCard>
+    }
+</div>
+
+<section class="glass panel" style="margin-top:16px;">
+    <h2>Main — Разбиение числа на слагаемые</h2>
+    <p class="muted">
+        Рекурсия Partition(n, max) → k + Partition(n−k, k). Неупорядоченные разбиения,
+        p(5)=7, p(10)=42. Замеры и демо — следующие этапы.
+    </p>
+    <div class="stat-row">
+        <span class="stat-chip">p(5) = 7</span>
+        <span class="stat-chip">p(10) = 42</span>
+        <span class="stat-chip">demo n ≤ 30</span>
+    </div>
+</section>
+
+<section class="glass panel">
+    <h2>Как добавить алгоритм</h2>
+    <p class="muted">
+        Заполните стаб <code>TeamAlgorithmSlotB</code> / <code>TeamAlgorithmSlotC</code>
+        (шаблон: <code>Core/Team/_TEMPLATE.md</code>). Контракты и UI не менять.
+    </p>
+</section>

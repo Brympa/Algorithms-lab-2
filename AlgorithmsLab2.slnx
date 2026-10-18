@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AlgorithmsLab2.Core/AlgorithmsLab2.Core.csproj" />
+    <Project Path="src/AlgorithmsLab2.Web/AlgorithmsLab2.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AlgorithmsLab2.Tests/AlgorithmsLab2.Tests.csproj" />
+  </Folder>
+</Solution>

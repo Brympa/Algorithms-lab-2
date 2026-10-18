@@ -1,0 +1,86 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Nav
+
+<div class="app-shell">
+    <aside class="glass-nav">
+        <div class="brand">
+            <div class="brand-title">Algorithms Lab 2</div>
+            <div class="brand-sub">Рекурсивные алгоритмы · SPA на C#</div>
+        </div>
+
+        <nav>
+            <ul class="nav-list">
+                <li>
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z"/>
+                        </svg>
+                        Обзор
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink class="nav-link" href="fractals">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M12 3v4m0 10v4M3 12h4m10 0h4M6.5 6.5 9 9m6 6 2.5 2.5M17.5 6.5 15 9m-6 6-2.5 2.5"/>
+                            <circle cx="12" cy="12" r="2.2"/>
+                        </svg>
+                        Фракталы
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink class="nav-link" href="hanoi">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M5 20V8m7 12V4m7 16v-8"/>
+                            <path d="M3 20h18"/>
+                        </svg>
+                        Ханой
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink class="nav-link" href="team">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <circle cx="8" cy="9" r="2.5"/><circle cx="16" cy="9" r="2.5"/>
+                            <path d="M4 19c0-2.5 1.8-4 4-4s4 1.5 4 4M12 19c0-2.5 1.8-4 4-4s4 1.5 4 4"/>
+                        </svg>
+                        Командные
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink class="nav-link" href="about">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <circle cx="12" cy="12" r="8"/><path d="M12 11v5m0-8.5v.5"/>
+                        </svg>
+                        О проекте
+                    </NavLink>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="nav-footer">
+            .NET 10 · Blazor WASM<br />
+            Brotli · Canvas · C# Core
+        </div>
+    </aside>
+
+    <main class="app-main">
+        @Body
+    </main>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        // shell static — событие оставлено для будущих эффектов
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

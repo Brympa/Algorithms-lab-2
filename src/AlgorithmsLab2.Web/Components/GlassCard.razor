@@ -1,0 +1,21 @@
+<div class="glass card @CssClass">
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <div class="row" style="justify-content:space-between;align-items:center;">
+            <h3>@Title</h3>
+            @if (!string.IsNullOrEmpty(Badge))
+            {
+                <span class="badge @BadgeClass">@Badge</span>
+            }
+        </div>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Badge { get; set; }
+    [Parameter] public string? BadgeClass { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

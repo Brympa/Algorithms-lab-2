@@ -1,0 +1,56 @@
+@page "/about"
+
+<PageTitle>О проекте</PageTitle>
+
+<header class="page-header">
+    <div>
+        <h1>О проекте</h1>
+        <p>Архитектура, принципы, стек и как добавлять алгоритмы без переписывания кода.</p>
+    </div>
+    <span class="badge">Clean Architecture</span>
+</header>
+
+<section class="glass panel">
+    <h2>Стек</h2>
+    <div class="stat-row">
+        <span class="stat-chip">.NET 10 · C#</span>
+        <span class="stat-chip">Blazor WebAssembly SPA</span>
+        <span class="stat-chip">Brotli publish</span>
+        <span class="stat-chip">Canvas 2D (не Plotly)</span>
+        <span class="stat-chip">xUnit</span>
+    </div>
+</section>
+
+<section class="glass panel">
+    <h2>Слои</h2>
+    <p>
+        <strong>AlgorithmsLab2.Core</strong> — чистый C#: фракталы, Ханой, командные алгоритмы, замеры, геометрия.<br />
+        <strong>AlgorithmsLab2.Web</strong> — Blazor UI, interop, glass-тема.<br />
+        <strong>AlgorithmsLab2.Tests</strong> — юнит-тесты инвариантов.
+    </p>
+    <p class="muted">
+        Dependency Rule: Web → Core. UI-типы в Core не попадают.
+    </p>
+</section>
+
+<section class="glass panel">
+    <h2>Расширение</h2>
+    <ol class="muted">
+        <li>Новый класс (фрактал / solver / team-algorithm).</li>
+        <li>Одна строка в <code>AllAlgorithms.Register</code>.</li>
+        <li>UI подхватит каталог автоматически.</li>
+    </ol>
+    <p class="muted">
+        Регистрация явная (без reflection) — совместимо с <code>PublishTrimmed</code>.
+    </p>
+</section>
+
+<section class="glass panel">
+    <h2>Против зависаний UI</h2>
+    <ul class="muted">
+        <li>Геометрия → Float32Array (не JSON).</li>
+        <li>Тайм-слайсы и CancellationToken внутри алгоритмов.</li>
+        <li>Debounce слайдеров, throttle перерисовки.</li>
+        <li>Hanoi playback state — C#, кадры — JS.</li>
+    </ul>
+</section>

@@ -1,0 +1,103 @@
+@page "/hanoi"
+@inject CatalogState Catalog
+@inject HanoiPlaybackService Playback
+@implements IDisposable
+
+<PageTitle>Ханойская башня</PageTitle>
+
+<header class="page-header">
+    <div>
+        <h1>Ханойская башня</h1>
+        <p>
+            Задание 2. N = 8, минимум ходов 2⁸ − 1 = 255. Один playback, два solver:
+            рекурсия и стек (списки ходов идентичны).
+        </p>
+    </div>
+    <span class="badge accent">N = 8</span>
+</header>
+
+<section class="glass panel">
+    <div class="row">
+        <div class="field">
+            <label>Solver</label>
+            <select @bind="_solverId">
+                @foreach (var s in Catalog.Hanoi.GetAll())
+                {
+                    <option value="@s.Id">@s.Name</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label>Дисков</label>
+            <input type="number" min="1" max="12" @bind="_disks" />
+        </div>
+        <div class="field">
+            <label>Скорость</label>
+            <input type="range" min="0.25" max="4" step="0.25" value="@Playback.Speed"
+                   @oninput="OnSpeed" />
+        </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:12px;">
+        <button class="btn primary" @onclick="Build">Собрать ходы</button>
+        <button class="btn" disabled="@(_moves.Count == 0)" @onclick="Playback.Play">▶ Play</button>
+        <button class="btn" @onclick="Playback.Pause">⏸ Pause</button>
+        <button class="btn" @onclick="Playback.StepBack">← Шаг</button>
+        <button class="btn" @onclick="Playback.StepForward">Шаг →</button>
+        <button class="btn" @onclick="Playback.Reset">Сброс</button>
+    </div>
+
+    <div class="stat-row" style="margin-top:12px;">
+        <span class="stat-chip">ходов: @Playback.MoveCount</span>
+        <span class="stat-chip">шаг: @Playback.CurrentIndex</span>
+        <span class="stat-chip">min: @HanoiMath.MinMoves(_disks)</span>
+    </div>
+</section>
+
+<section class="glass panel">
+    <h2>Арена</h2>
+    <p class="muted">
+        Canvas-отрисовка стержней и колец + JS-playback — этап 4.
+        Сейчас state-machine готова: Load → Play/Pause/Seek.
+    </p>
+    <div class="stat-row">
+        @foreach (var s in Catalog.Hanoi.GetAll())
+        {
+            <span class="stat-chip">@s.Id</span>
+        }
+    </div>
+</section>
+
+@code {
+    private string _solverId = "hanoi-recursive";
+    private int _disks = 8;
+    private IReadOnlyList<HanoiMove> _moves = Array.Empty<HanoiMove>();
+
+    protected override void OnInitialized()
+    {
+        Playback.Changed += OnPlaybackChanged;
+    }
+
+    private void OnPlaybackChanged() => InvokeAsync(StateHasChanged);
+
+    private void Build()
+    {
+        var solver = Catalog.Hanoi.Get(_solverId) ?? Catalog.Hanoi.GetAll().FirstOrDefault();
+        if (solver is null)
+            return;
+
+        _moves = solver.Solve(_disks);
+        Playback.Load(_moves, _disks);
+    }
+
+    private void OnSpeed(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out var s))
+            Playback.SetSpeed(s);
+    }
+
+    public void Dispose()
+    {
+        Playback.Changed -= OnPlaybackChanged;
+    }
+}

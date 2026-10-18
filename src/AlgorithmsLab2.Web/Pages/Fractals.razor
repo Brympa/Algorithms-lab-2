@@ -1,0 +1,115 @@
+@page "/fractals"
+@inject CatalogState Catalog
+
+<PageTitle>Фракталы — Кривая Госпера</PageTitle>
+
+<header class="page-header">
+    <div>
+        <h1>Фракталы</h1>
+        <p>
+            Задание 1. Кривая Госпера строится <strong>рекурсивно</strong>:
+            порядок n состоит из 7 кривых порядка n−1. Сегментов: 7<sup>n</sup>.
+        </p>
+    </div>
+    <span class="badge accent">Рекурсия</span>
+</header>
+
+@if (_generator is null)
+{
+    <div class="glass panel">Генератор не зарегистрирован.</div>
+}
+else
+{
+    <section class="glass panel">
+        <h2>@_generator.Name</h2>
+        <p class="muted">@_generator.Description</p>
+
+        <div class="row" style="margin-top:12px;">
+            <div class="field">
+                <label>Порядок n = @_order</label>
+                <input type="range" min="0" max="@_generator.MaxOrder" step="1" value="@_order"
+                       @oninput="OnOrderInput" />
+            </div>
+            <div class="field">
+                <label>Сегментов (7^n)</label>
+                <div class="stat-chip">@_segments.ToString("N0")</div>
+            </div>
+            <div class="field">
+                <label>Ограничение</label>
+                <div class="stat-chip">max n = @_generator.MaxOrder</div>
+            </div>
+        </div>
+
+        <div class="btn-row" style="margin-top:12px;">
+            <button class="btn primary" @onclick="Generate">Построить</button>
+            <button class="btn" @onclick="Reset">Сброс</button>
+        </div>
+
+        @if (_status is not null)
+        {
+            <p class="muted" style="margin-top:12px;">@_status</p>
+        }
+    </section>
+
+    <section class="glass panel">
+        <h2>Предпросмотр (каркас UI)</h2>
+        <p class="muted">
+            Полноценный Canvas-рендер (Path2D + Float32Array) — этап 2.
+            Сейчас проверяем генерацию геометрии в Core.
+        </p>
+        @if (_geometry is not null)
+        {
+            <div class="stat-row">
+                <span class="stat-chip">points: @_geometry.PointCount</span>
+                <span class="stat-chip">bbox: [@_geometry.Bounds.MinX:F2, @_geometry.Bounds.MinY:F2] … [@_geometry.Bounds.MaxX:F2, @_geometry.Bounds.MaxY:F2]</span>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private IFractalGenerator? _generator;
+    private int _order = 3;
+    private long _segments = 0;
+    private FractalGeometry? _geometry;
+    private string? _status;
+
+    protected override void OnInitialized()
+    {
+        _generator = Catalog.Fractals.Get("gosper") ?? Catalog.Fractals.GetAll().FirstOrDefault();
+        UpdateSegments();
+    }
+
+    private void OnOrderInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var n))
+        {
+            _order = n;
+            UpdateSegments();
+        }
+    }
+
+    private void UpdateSegments()
+    {
+        _segments = _order <= 0 ? 1 : (long)Math.Pow(7, _order);
+    }
+
+    private void Generate()
+    {
+        if (_generator is null)
+            return;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        _geometry = _generator.Generate(new FractalRequest(_order));
+        sw.Stop();
+        _status = $"Готово за {sw.Elapsed.TotalMilliseconds:F1} мс · точек {_geometry.PointCount:N0} · сегментов {Math.Pow(7, _order):N0}";
+    }
+
+    private void Reset()
+    {
+        _geometry = null;
+        _status = null;
+        _order = _generator?.DefaultOrder ?? 3;
+        UpdateSegments();
+    }
+}

@@ -1,0 +1,47 @@
+@page "/"
+
+<PageTitle>Algorithms Lab 2 — Обзор</PageTitle>
+
+<header class="page-header">
+    <div>
+        <h1>Рекурсивные алгоритмы</h1>
+        <p>
+            Лабораторная №2: фракталы рекурсией, Ханойская башня (рекурсия и стек),
+            командные алгоритмы и замеры. Логика — на C#, SPA — Blazor WebAssembly с Brotli.
+        </p>
+    </div>
+    <span class="badge accent">Этап 0 · каркас</span>
+</header>
+
+<div class="card-grid">
+    <GlassCard Title="Фракталы" Badge="Задание 1" BadgeClass="accent">
+        <p>Кривая Госпера — рекурсивная генерация пути (7 подкривых), отрисовка на Canvas.</p>
+        <a class="btn primary" href="fractals">Открыть</a>
+    </GlassCard>
+
+    <GlassCard Title="Ханойская башня" Badge="Задание 2" BadgeClass="accent">
+        <p>GUI на N=8, минимальное число ходов 2⁸−1=255. Режимы: рекурсия и стек.</p>
+        <a class="btn primary" href="hanoi">Открыть</a>
+    </GlassCard>
+
+    <GlassCard Title="Командные алгоритмы" Badge="Доп." BadgeClass="warn">
+        <p>Слот main — разбиение числа на слагаемые. Слоты B/C — стабы на доработку.</p>
+        <a class="btn primary" href="team">Открыть</a>
+    </GlassCard>
+
+    <GlassCard Title="Архитектура" Badge="SOLID">
+        <p>Core (чистый C#) → Web (Blazor) → Tests. Расширение: класс + строка в AllAlgorithms.Register.</p>
+        <a class="btn" href="about">Подробнее</a>
+    </GlassCard>
+</div>
+
+<section class="glass panel" style="margin-top:16px;">
+    <h2>Принципы</h2>
+    <div class="stat-row">
+        <span class="stat-chip">SOLID / DRY / KISS</span>
+        <span class="stat-chip">Canvas вместо Plotly</span>
+        <span class="stat-chip">TypedArray, не JSON</span>
+        <span class="stat-chip">Отмена внутри алгоритмов</span>
+        <span class="stat-chip">Brotli SPA</span>
+    </div>
+</section>
