@@ -25,12 +25,12 @@ public static class AllAlgorithms
         var partitions = new IntegerPartitionsAlgorithm();
         team.Register(partitions, partitions);
 
-        // slot-b / slot-c — стабы на доработку участниками
-        var slotB = new TeamAlgorithmSlotB();
-        team.Register(slotB, slotB);
+        // slot-b / slot-c — реализованные алгоритмы команды
+        var stern = new SternBrocotAlgorithm();
+        team.Register(stern, stern);
 
-        var slotC = new TeamAlgorithmSlotC();
-        team.Register(slotC, slotC);
+        var karatsuba = new KaratsubaAlgorithm();
+        team.Register(karatsuba, karatsuba);
     }
 
     public static (FractalCatalog Fractals, TeamCatalog Team, HanoiCatalog Hanoi) CreateDefault()

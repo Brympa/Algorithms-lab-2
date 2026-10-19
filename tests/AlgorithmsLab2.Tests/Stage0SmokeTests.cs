@@ -15,17 +15,18 @@ public class CatalogTests
         Assert.NotNull(hanoi.Get("hanoi-recursive"));
         Assert.NotNull(hanoi.Get("hanoi-stack"));
         Assert.NotNull(team.Get("team-integer-partitions"));
-        Assert.NotNull(team.Get("team-slot-b"));
-        Assert.NotNull(team.Get("team-slot-c"));
+        Assert.NotNull(team.Get("team-stern-brocot"));
+        Assert.NotNull(team.Get("team-karatsuba"));
     }
 
     [Fact]
     public void Stubs_Are_Not_Ready()
     {
         var (_, team, _) = AllAlgorithms.CreateDefault();
-        Assert.False(team.Get("team-slot-b")!.IsReady);
-        Assert.False(team.Get("team-slot-c")!.IsReady);
+        // main + slot-b + slot-c — все реализованы
         Assert.True(team.Get("team-integer-partitions")!.IsReady);
+        Assert.True(team.Get("team-stern-brocot")!.IsReady);
+        Assert.True(team.Get("team-karatsuba")!.IsReady);
     }
 }
 
