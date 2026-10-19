@@ -23,5 +23,6 @@ builder.Services.AddScoped<HanoiPlaybackService>();
 builder.Services.AddScoped<CanvasRenderService>();
 builder.Services.AddScoped<HanoiCanvasService>();
 builder.Services.AddScoped<MiniChartService>();
+builder.Services.AddScoped<TeamVizService>();
 
 await builder.Build().RunAsync();

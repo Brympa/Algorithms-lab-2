@@ -2,7 +2,7 @@
 @implements IAsyncDisposable
 @inject CatalogState Catalog
 @inject MiniChartService Chart
-@inject IJSRuntime Js
+@inject TeamVizService Viz
 
 <PageTitle>Командные алгоритмы</PageTitle>
 
@@ -10,11 +10,10 @@
     <div>
         <h1>Командные алгоритмы</h1>
         <p>
-            Доп. к лабе: каждый участник — свой рекурсивный алгоритм, замеры времени,
-            справка и демо. Слоты: <strong>main</strong> / <strong>slot-b</strong> / <strong>slot-c</strong> (без ФИО).
+            Рекурсивные алгоритмы: разбиение числа на слагаемые, дерево Штерна–Броко,
+            умножение Карацубы — с визуализацией, демо и замерами.
         </p>
     </div>
-    <span class="badge accent">@_readyCount готово · @_total слотов</span>
 </header>
 
 <div class="card-grid">
@@ -23,11 +22,10 @@
         <div class="glass card @(algo.Id == _selectedId ? "selected-card" : "")" @onclick="() => Select(algo.Id)">
             <div class="row" style="justify-content:space-between;align-items:center;">
                 <h3>@algo.Name</h3>
-                <span class="badge @(algo.IsReady ? "accent" : "warn")">@(algo.IsReady ? "готов" : "TODO")</span>
+                <span class="badge accent">@algo.Slot</span>
             </div>
             <p>@algo.Description</p>
             <div class="stat-row">
-                <span class="stat-chip">@algo.Slot</span>
                 <span class="stat-chip">@algo.Complexity.Display</span>
             </div>
         </div>
@@ -37,41 +35,41 @@
 @if (_selected is not null)
 {
     <section class="glass panel" style="margin-top:16px;">
-        <h2>@_selected.Name <span class="badge">@_selected.Slot</span></h2>
+        <h2>@_selected.Name</h2>
         <p>@_selected.Description</p>
         <p class="muted">@_selected.PracticalApplication</p>
-
         <div class="stat-row">
             <span class="stat-chip">Best: @_selected.Complexity.Best</span>
             <span class="stat-chip">Avg: @_selected.Complexity.Average</span>
             <span class="stat-chip">Worst: @_selected.Complexity.Worst</span>
         </div>
-
-        @if (_selected.Sources.Count > 0)
-        {
-            <p class="muted" style="margin-top:8px;">
-                Источники: @string.Join(" · ", _selected.Sources)
-            </p>
-        }
     </section>
 
-    @if (_selected.IsReady && _runner is not null)
+    <section class="glass panel">
+        <h2>Визуализация</h2>
+        <div class="viz-frame">
+            <canvas @ref="_vizCanvas" style="width:100%;height:100%;"></canvas>
+        </div>
+        <p class="muted" style="margin-top:8px;">@_vizCaption</p>
+    </section>
+
+    @if (_runner is not null)
     {
         <div class="row" style="align-items:stretch;">
             <section class="glass panel" style="flex:1 1 320px;">
                 <h2>Демо</h2>
                 <div class="row">
                     <div class="field">
-                        <label>n (разбиение)</label>
-                        <input type="number" min="0" max="30" value="@_demoN" @oninput="OnDemoN" />
+                        <label>n</label>
+                        <input type="number" min="0" max="40" value="@_demoN" @oninput="OnDemoN" />
                     </div>
                     <div class="field">
-                        <label>p(n)</label>
-                        <div class="stat-chip">@_pn</div>
+                        <label>Метрика</label>
+                        <div class="stat-chip">@_metricLabel</div>
                     </div>
                 </div>
                 <div class="btn-row" style="margin-top:10px;">
-                    <button class="btn primary" disabled="@_demoBusy" @onclick="RunDemoAsync">Запустить демо</button>
+                    <button class="btn primary" disabled="@_demoBusy" @onclick="RunDemoAsync">Демо</button>
                     <button class="btn" @onclick="Cancel">Стоп</button>
                 </div>
                 <div class="trace" style="margin-top:12px;max-height:280px;overflow:auto;">
@@ -131,17 +129,6 @@
             </section>
         </div>
     }
-    else if (!_selected.IsReady)
-    {
-        <section class="glass panel">
-            <h2>Стаб на доработку</h2>
-            <p class="muted">
-                Реализуйте <code>RunAsync</code> и <code>DemoAsync</code> в
-                <code>Core/Team/Algorithms/@(GetStubFileName(_selected.Id))</code>
-                (шаблон: <code>Team/_TEMPLATE.md</code>). UI уже готов.
-            </p>
-        </section>
-    }
 
     @if (_status is not null)
     {
@@ -159,29 +146,29 @@
     private int _nMin = 1;
     private int _nMax = 12;
     private int _iters = 3;
-    private long _pn;
+    private string _metricLabel = "—";
 
     private bool _demoBusy;
     private bool _benchBusy;
     private readonly List<TraceStep> _trace = new();
     private readonly List<BenchmarkPoint> _points = new();
     private string? _status;
+    private string _vizCaption = "";
     private ElementReference _chartCanvas;
+    private ElementReference _vizCanvas;
     private bool _chartReady;
-
-    private int _readyCount;
-    private int _total;
+    private bool _vizReady;
 
     private CancellationTokenSource? _cts;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        _algos = Catalog.Team.GetAll().OrderBy(a => a.Slot == "main" ? 0 : 1).ThenBy(a => a.Slot).ToList();
-        _total = _algos.Count;
-        _readyCount = _algos.Count(a => a.IsReady);
-        var firstReady = _algos.FirstOrDefault(a => a.IsReady) ?? _algos.FirstOrDefault();
-        if (firstReady is not null)
-            Select(firstReady.Id);
+        _algos = Catalog.Team.GetAll()
+            .OrderBy(a => a.Slot == "main" ? 0 : a.Slot == "slot-b" ? 1 : 2)
+            .ToList();
+        var first = _algos.FirstOrDefault();
+        if (first is not null)
+            await Select(first.Id);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -189,11 +176,14 @@
         if (firstRender)
         {
             await Chart.CreateAsync(_chartCanvas);
+            await Viz.CreateAsync(_vizCanvas);
             _chartReady = true;
+            _vizReady = true;
+            await RedrawVizAsync();
         }
     }
 
-    private void Select(string id)
+    private async Task Select(string id)
     {
         _selectedId = id;
         _selected = _algos.FirstOrDefault(a => a.Id == id);
@@ -201,29 +191,109 @@
         _trace.Clear();
         _points.Clear();
         _status = null;
-        if (_selected is IntegerPartitionsAlgorithm)
+        _demoN = id switch
         {
-            _pn = CountP(_demoN);
+            "team-integer-partitions" => 5,
+            "team-stern-brocot" => 4,
+            "team-karatsuba" => 8,
+            _ => 5
+        };
+        _metricLabel = id switch
+        {
+            "team-integer-partitions" => $"p({_demoN})",
+            "team-stern-brocot" => "вершины / шаги",
+            "team-karatsuba" => "вызовы Multiply",
+            _ => "—"
+        };
+
+        if (_vizReady)
+            await RedrawVizAsync();
+        StateHasChanged();
+    }
+
+    private async Task RedrawVizAsync()
+    {
+        if (!_vizReady || _selected is null)
+            return;
+
+        if (_selected.Id == "team-stern-brocot" && _selected is SternBrocotAlgorithm sb)
+        {
+            int depth = Math.Clamp(_demoN, 1, 6);
+            var tree = sb.GenerateTree(depth);
+            int count = tree.Count;
+            var nodes = new (double X, double Y)[count];
+            var edges = new List<(int A, int B)>();
+            var labels = new List<string>(count);
+
+            // компактный layout полного бинарного дерева (inorder → x)
+            void Place(int left, int right, int level, int maxLevel)
+            {
+                if (left > right)
+                    return;
+                int mid = (left + right) / 2;
+                double x = (mid + 0.5) / count;
+                double y = 0.12 + 0.72 * (level / Math.Max(1.0, maxLevel - 1));
+                nodes[mid] = (x, y);
+                if (left <= mid - 1)
+                {
+                    edges.Add((mid, (left + mid - 1) / 2));
+                    Place(left, mid - 1, level + 1, maxLevel);
+                }
+                if (mid + 1 <= right)
+                {
+                    edges.Add((mid, (mid + 1 + right) / 2));
+                    Place(mid + 1, right, level + 1, maxLevel);
+                }
+            }
+
+            Place(0, count - 1, 0, depth);
+            for (int i = 0; i < count; i++)
+                labels.Add(tree[i].ToString());
+
+            await Viz.DrawTreeAsync(_vizCanvas, nodes.ToList(), edges, labels);
+            _vizCaption = $"Дерево Штерна–Броко, глубина {depth}: {tree.Count} вершин.";
+        }
+        else if (_selected.Id == "team-karatsuba" && _selected is KaratsubaAlgorithm ka)
+        {
+            int n = Math.Clamp(_demoN, 4, 20);
+            string xs = new string('1', n);
+            string ys = new string('2', n);
+            var log = ka.TraceMultiply(
+                System.Numerics.BigInteger.Parse(xs),
+                System.Numerics.BigInteger.Parse(ys));
+            var depths = new List<float>();
+            foreach (var line in log)
+            {
+                int indent = line.Length - line.TrimStart().Length;
+                depths.Add((indent / 2) + 1);
+            }
+
+            await Viz.DrawBarsAsync(_vizCanvas, depths, "Глубина рекурсии Карацубы (шаги разбора)");
+            _vizCaption = $"Трасса умножения {n}-значных чисел: {log.Count} шагов, 3 подвызова на уровень.";
+        }
+        else if (_selected.Id == "team-integer-partitions" && _selected is IntegerPartitionsAlgorithm ip)
+        {
+            int n = Math.Clamp(_demoN, 1, 12);
+            var parts = ip.EnumeratePartitions(n, CancellationToken.None).Take(40).ToList();
+            var sizes = parts.Select(p => (float)p.Count).ToList();
+            await Viz.DrawBarsAsync(_vizCanvas, sizes, $"Разбиения n={n}: длина каждого (кол-во слагаемых)");
+            _vizCaption = $"Первые разбиения числа {n} (показано {sizes.Count}): столбцы — число слагаемых.";
         }
         else
         {
-            _pn = 0;
+            await Viz.DrawBarsAsync(_vizCanvas, Array.Empty<float>(), "нет данных");
+            _vizCaption = "";
         }
-    }
-
-    private long CountP(int n)
-    {
-        var algo = Catalog.Team.Get("team-integer-partitions") as IntegerPartitionsAlgorithm;
-        return algo?.CountPartitions(Math.Clamp(n, 0, 30)) ?? 0;
     }
 
     private void OnDemoN(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var n))
         {
-            _demoN = Math.Clamp(n, 0, 30);
+            _demoN = n;
             if (_selected?.Id == "team-integer-partitions")
-                _pn = CountP(_demoN);
+                _metricLabel = $"p({Math.Clamp(n, 0, 30)})";
+            _ = RedrawVizAsync();
         }
     }
 
@@ -253,6 +323,10 @@
                     await Task.Yield();
                 }
             }
+
+            if (_selected?.Id == "team-integer-partitions" && _selected is IntegerPartitionsAlgorithm ip)
+                _metricLabel = $"p({_demoN}) = {ip.CountPartitions(Math.Clamp(_demoN, 0, 30))}";
+
             _status = $"Демо готово · шагов {_trace.Count}";
         }
         catch (OperationCanceledException)
@@ -333,16 +407,9 @@
         _cts = null;
     }
 
-    private static string GetStubFileName(string id) => id switch
-    {
-        "team-slot-b" => "TeamAlgorithmSlotB.cs",
-        "team-slot-c" => "TeamAlgorithmSlotC.cs",
-        _ => "IntegerPartitionsAlgorithm.cs"
-    };
-
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         Cancel();
-        return ValueTask.CompletedTask;
+        await Viz.DisposeAsync();
     }
 }

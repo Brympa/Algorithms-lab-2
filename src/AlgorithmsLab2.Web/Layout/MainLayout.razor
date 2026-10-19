@@ -1,12 +1,9 @@
 @inherits LayoutComponentBase
-@implements IDisposable
-@inject NavigationManager Nav
 
 <div class="app-shell">
     <aside class="glass-nav">
         <div class="brand">
             <div class="brand-title">Algorithms Lab 2</div>
-            <div class="brand-sub">Рекурсивные алгоритмы · SPA на C#</div>
         </div>
 
         <nav>
@@ -56,31 +53,9 @@
                 </li>
             </ul>
         </nav>
-
-        <div class="nav-footer">
-            .NET 10 · Blazor WASM<br />
-            Brotli · Canvas · C# Core
-        </div>
     </aside>
 
     <main class="app-main">
         @Body
     </main>
 </div>
-
-@code {
-    protected override void OnInitialized()
-    {
-        Nav.LocationChanged += OnLocationChanged;
-    }
-
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        // shell static — событие оставлено для будущих эффектов
-    }
-
-    public void Dispose()
-    {
-        Nav.LocationChanged -= OnLocationChanged;
-    }
-}

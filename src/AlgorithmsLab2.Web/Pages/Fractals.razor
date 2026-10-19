@@ -2,6 +2,7 @@
 @implements IAsyncDisposable
 @inject CatalogState Catalog
 @inject CanvasRenderService CanvasService
+@inject TeamVizService Viz
 
 <PageTitle>Фракталы — Кривая Госпера</PageTitle>
 
@@ -100,6 +101,7 @@
     private async Task OnCanvasHosted()
     {
         _hostReady = true;
+        await Viz.BindRangeFillsAsync();
         if (_geometry is not null)
             await RedrawAsync();
     }

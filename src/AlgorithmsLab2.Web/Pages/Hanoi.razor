@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject CatalogState Catalog
 @inject HanoiPlaybackService Playback
+@inject TeamVizService Viz
 
 <PageTitle>Ханойская башня</PageTitle>
 
@@ -32,7 +33,7 @@
             <input type="number" min="1" max="12" value="@_disks" @oninput="OnDisksInput" />
         </div>
         <div class="field" style="min-width:180px;">
-            <label>Скорость x@Playback.Speed.ToString("0.##")</label>
+            <label>Скорость · x@(Playback.Speed.ToString("0.##"))</label>
             <input type="range" min="0.25" max="4" step="0.25" value="@Playback.Speed"
                    @oninput="OnSpeedInput" />
         </div>
@@ -112,6 +113,7 @@
     private async Task OnBoardHosted()
     {
         _boardReady = true;
+        await Viz.BindRangeFillsAsync();
         if (_moves.Count > 0 && _board is not null)
             await _board.LoadAsync(_disks, _moves);
     }

@@ -5,52 +5,32 @@
 <header class="page-header">
     <div>
         <h1>О проекте</h1>
-        <p>Архитектура, принципы, стек и как добавлять алгоритмы без переписывания кода.</p>
+        <p>Архитектура лабораторной №2 и расширение алгоритмов.</p>
     </div>
-    <span class="badge">Clean Architecture</span>
 </header>
 
 <section class="glass panel">
-    <h2>Стек</h2>
-    <div class="stat-row">
-        <span class="stat-chip">.NET 10 · C#</span>
-        <span class="stat-chip">Blazor WebAssembly SPA</span>
-        <span class="stat-chip">Brotli publish</span>
-        <span class="stat-chip">Canvas 2D (не Plotly)</span>
-        <span class="stat-chip">xUnit</span>
-    </div>
-</section>
-
-<section class="glass panel">
-    <h2>Слои</h2>
+    <h2>Задания</h2>
     <p>
-        <strong>AlgorithmsLab2.Core</strong> — чистый C#: фракталы, Ханой, командные алгоритмы, замеры, геометрия.<br />
-        <strong>AlgorithmsLab2.Web</strong> — Blazor UI, interop, glass-тема.<br />
-        <strong>AlgorithmsLab2.Tests</strong> — юнит-тесты инвариантов.
-    </p>
-    <p class="muted">
-        Dependency Rule: Web → Core. UI-типы в Core не попадают.
+        <strong>Задание 1.</strong> Отрисовка фрактала (кривая Госпера) рекурсивным алгоритмом.<br />
+        <strong>Задание 2.</strong> Ханойская башня N=8, минимум 255 ходов; доп. — решение через стек.<br />
+        <strong>Доп.</strong> Командные рекурсивные алгоритмы: замеры, справка, демо.
     </p>
 </section>
 
 <section class="glass panel">
-    <h2>Расширение</h2>
+    <h2>Структура</h2>
+    <p>
+        <strong>AlgorithmsLab2.Core</strong> — алгоритмы и каталоги (чистый C#).<br />
+        <strong>AlgorithmsLab2.Web</strong> — Blazor WebAssembly, Canvas.<br />
+        <strong>AlgorithmsLab2.Tests</strong> — unit-тесты.
+    </p>
+</section>
+
+<section class="glass panel">
+    <h2>Новый алгоритм</h2>
     <ol class="muted">
-        <li>Новый класс (фрактал / solver / team-algorithm).</li>
-        <li>Одна строка в <code>AllAlgorithms.Register</code>.</li>
-        <li>UI подхватит каталог автоматически.</li>
+        <li>Класс в <code>Core/Team/Algorithms/</code> или <code>Core/Fractals/</code>.</li>
+        <li>Строка в <code>AllAlgorithms.Register</code>.</li>
     </ol>
-    <p class="muted">
-        Регистрация явная (без reflection) — совместимо с <code>PublishTrimmed</code>.
-    </p>
-</section>
-
-<section class="glass panel">
-    <h2>Против зависаний UI</h2>
-    <ul class="muted">
-        <li>Геометрия → Float32Array (не JSON).</li>
-        <li>Тайм-слайсы и CancellationToken внутри алгоритмов.</li>
-        <li>Debounce слайдеров, throttle перерисовки.</li>
-        <li>Hanoi playback state — C#, кадры — JS.</li>
-    </ul>
 </section>
