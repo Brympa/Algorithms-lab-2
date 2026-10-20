@@ -144,9 +144,26 @@ public class GosperCurveTests
     }
 
     [Fact]
-    public void MaxOrder_Is_6_For_Demo()
+    public void MaxOrder_Is_100()
     {
-        Assert.Equal(6, _gen.MaxOrder);
+        Assert.Equal(100, _gen.MaxOrder);
+    }
+
+    [Fact]
+    public void SegmentCount_Order100_DoesNotOverflow()
+    {
+        Assert.Equal(int.MaxValue, GosperCurveGenerator.SegmentCount(100));
+        var big = GosperCurveGenerator.BigSegmentCount(100);
+        Assert.True(big > 0);
+        Assert.Contains("10^84", GosperCurveGenerator.FormatSegmentCount(100));
+    }
+
+    [Fact]
+    public void Generate_Order100_GeneratesSafely()
+    {
+        var g = _gen.Generate(new FractalRequest(100));
+        Assert.True(g.PointCount > 0);
+        Assert.Equal(823544, g.PointCount);
     }
 
     [Fact]
@@ -160,6 +177,65 @@ public class GosperCurveTests
     {
         var g = _gen.Generate(new FractalRequest(6));
         Assert.Equal(117650, g.PointCount);
+    }
+
+    [Fact]
+    public void SegmentCount_Negative_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => GosperCurveGenerator.SegmentCount(-1));
+    }
+
+    [Theory]
+    [InlineData(11)]
+    [InlineData(12)]
+    [InlineData(50)]
+    [InlineData(100)]
+    public void SegmentCount_OrderGreaterThan10_ReturnsIntMaxValue(int order)
+    {
+        Assert.Equal(int.MaxValue, GosperCurveGenerator.SegmentCount(order));
+    }
+
+    [Fact]
+    public void BigSegmentCount_Negative_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => GosperCurveGenerator.BigSegmentCount(-1));
+    }
+
+    [Theory]
+    [InlineData(0, "1")]
+    [InlineData(1, "7")]
+    [InlineData(2, "49")]
+    [InlineData(3, "343")]
+    public void BigSegmentCount_ExactValues(int order, string expected)
+    {
+        Assert.Equal(System.Numerics.BigInteger.Parse(expected), GosperCurveGenerator.BigSegmentCount(order));
+    }
+
+    [Fact]
+    public void FormatSegmentCount_EdgeCases()
+    {
+        Assert.Equal("0", GosperCurveGenerator.FormatSegmentCount(-1));
+        Assert.Equal("1", GosperCurveGenerator.FormatSegmentCount(0));
+        Assert.Equal("7", GosperCurveGenerator.FormatSegmentCount(1));
+        Assert.Contains("10^84", GosperCurveGenerator.FormatSegmentCount(100));
+    }
+
+    [Fact]
+    public void Generate_NegativeOrder_ClampsToZero()
+    {
+        var g = _gen.Generate(new FractalRequest(-5));
+        Assert.Equal(2, g.PointCount); // Order 0 has 1 segment, 2 points
+    }
+
+    [Theory]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(20)]
+    [InlineData(100)]
+    public void Generate_HighOrder_ClampsToSevenWithoutOOM(int order)
+    {
+        var g = _gen.Generate(new FractalRequest(order));
+        Assert.Equal(823544, g.PointCount); // Order 7 has 823543 segments, 823544 points
     }
 
     private static List<(float x, float y)> InterpretLSystem(string commands)

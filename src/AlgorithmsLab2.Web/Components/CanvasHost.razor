@@ -29,6 +29,12 @@
     public Task DrawAsync(ReadOnlyMemory<float> xy, DrawOptions options) =>
         Canvas.DrawPolylineAsync(_canvas, xy, options);
 
+    public Task SetProgressAsync(double progress) =>
+        Canvas.SetProgressAsync(_canvas, progress);
+
+    public Task ResetViewAsync() =>
+        Canvas.ResetViewAsync(_canvas);
+
     public Task ExportPngAsync(string fileName) =>
         Canvas.ExportPngAsync(_canvas, fileName);
 

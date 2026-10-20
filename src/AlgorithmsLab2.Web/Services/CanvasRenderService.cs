@@ -49,6 +49,18 @@ public sealed class CanvasRenderService : IAsyncDisposable
         await m.InvokeVoidAsync("exportPng", canvas, fileName);
     }
 
+    public async Task SetProgressAsync(ElementReference canvas, double progress)
+    {
+        var m = await ModuleAsync();
+        await m.InvokeVoidAsync("setProgress", canvas, progress);
+    }
+
+    public async Task ResetViewAsync(ElementReference canvas)
+    {
+        var m = await ModuleAsync();
+        await m.InvokeVoidAsync("resetView", canvas);
+    }
+
     private static byte[] ToBytes(ReadOnlyMemory<float> xy)
     {
         var span = xy.Span;

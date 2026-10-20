@@ -13,7 +13,7 @@ public interface IFractalGenerator
     string Name { get; }
     string Description { get; }
     int DefaultOrder { get; }
-    /// <summary>Hard-cap для демо (6 — только вручную/медленный режим).</summary>
+    /// <summary>Максимальный порядок кривой (до 100).</summary>
     int MaxOrder { get; }
 
     /// <summary>Рекурсивная генерация пути. Не materialize L-строки.</summary>
