@@ -127,27 +127,78 @@ public sealed class SternBrocotAlgorithm : ITeamAlgorithm, IRecursiveAlgorithm
         BenchmarkRequest request,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        // n = глубина дерева; шаги = число посещений Walk / число сравнений Find
-        for (int d = Math.Max(1, request.NMin); d <= request.NMax; d += Math.Max(1, request.Step))
-        {
-            ct.ThrowIfCancellationRequested();
-            var elapsed = new List<double>(request.Iterations);
-            long steps = 0;
+        bool isSearch = string.Equals(request.Mode, "search", StringComparison.OrdinalIgnoreCase);
 
-            for (int iter = 0; iter < request.Iterations; iter++)
+        if (isSearch)
+        {
+            // Рекурсивный поиск дроби 1/n в дереве Штерна–Броко:
+            // n — знаменатель дроби; число рекурсивных шагов строго равно n, сложность O(n).
+            // Для устранения системного шума таймера и квантования браузера (Spectre mitigation)
+            // выполняем пакет повторений, нормализуя время на 1 операцию.
+            int minN = Math.Max(1, request.NMin);
+            int maxN = Math.Max(minN, request.NMax);
+            int step = Math.Max(1, request.Step);
+
+            for (int n = minN; n <= maxN; n += step)
             {
                 ct.ThrowIfCancellationRequested();
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                var tree = GenerateTree(Math.Min(d, 12), ct);
-                sw.Stop();
-                elapsed.Add(sw.Elapsed.TotalMilliseconds);
-                steps += tree.Count; // вершины как «шаги» генерации
+                var elapsed = new List<double>(request.Iterations);
+
+                // Адаптивное число повторений для достаточной длительности замера (>= 2 мс)
+                int repeats = Math.Max(50, 40_000 / Math.Max(1, n));
+
+                // Прогрев JIT (1 прогон без замера)
+                _ = FindPath(1, n, ct);
+
+                for (int iter = 0; iter < request.Iterations; iter++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    for (int r = 0; r < repeats; r++)
+                    {
+                        _ = FindPath(1, n, ct);
+                    }
+                    sw.Stop();
+                    // Время одной операции в миллисекундах с субмикросекундной точностью
+                    double perOpMs = sw.Elapsed.TotalMilliseconds / repeats;
+                    elapsed.Add(perOpMs);
+                }
+
+                var stats = Benchmark.BenchmarkRunner.Aggregate(n, elapsed, n);
+                yield return new BenchmarkPoint(n, stats.MeanMs, n);
+
+                await Task.Yield();
             }
+        }
+        else
+        {
+            // Рекурсивная генерация дерева: d — глубина дерева; число вершин ровно 2^d - 1, сложность O(2^d)
+            // Ограничиваем максимальную глубину 16 (2^16 = 65 535 вершин), так как 2^d растёт экспоненциально
+            int maxDepth = Math.Clamp(request.NMax, 1, 16);
+            int minDepth = Math.Clamp(request.NMin, 1, maxDepth);
+            int step = Math.Max(1, request.Step);
 
-            var stats = Benchmark.BenchmarkRunner.Aggregate(d, elapsed, steps / Math.Max(1, request.Iterations));
-            yield return new BenchmarkPoint(d, stats.MeanMs, (int)(steps / Math.Max(1, request.Iterations)));
+            for (int d = minDepth; d <= maxDepth; d += step)
+            {
+                ct.ThrowIfCancellationRequested();
+                var elapsed = new List<double>(request.Iterations);
+                long steps = 0;
 
-            await Task.Yield();
+                for (int iter = 0; iter < request.Iterations; iter++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    var tree = GenerateTree(d, ct); // Честная генерация глубины d без искусственного Math.Min(12)!
+                    sw.Stop();
+                    elapsed.Add(sw.Elapsed.TotalMilliseconds);
+                    steps += tree.Count; // ровно 2^d - 1 вершин
+                }
+
+                var stats = Benchmark.BenchmarkRunner.Aggregate(d, elapsed, steps / Math.Max(1, request.Iterations));
+                yield return new BenchmarkPoint(d, stats.MeanMs, (int)(steps / Math.Max(1, request.Iterations)));
+
+                await Task.Yield();
+            }
         }
     }
 

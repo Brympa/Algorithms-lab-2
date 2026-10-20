@@ -25,6 +25,17 @@
         <span class="dismiss">✕</span>
     </div>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script>
+        document.addEventListener("input", function (e) {
+            if (e.target && e.target.type === "number" && e.target.max) {
+                var max = Number(e.target.max);
+                var val = Number(e.target.value);
+                if (!isNaN(val) && !isNaN(max) && max > 0 && val > max) {
+                    e.target.value = max;
+                }
+            }
+        }, true);
+    </script>
 </body>
 
 </html>

@@ -4,9 +4,11 @@ public sealed record BenchmarkRequest(
     int NMin,
     int NMax,
     int Step,
-    int Iterations)
+    int Iterations,
+    string Mode = "")
 {
     public static BenchmarkRequest Default { get; } = new(1, 15, 1, 5);
+    public int StepsCount => Math.Max(1, (NMax - NMin) / Math.Max(1, Step) + 1);
 }
 
 public sealed record BenchmarkPoint(int N, double ElapsedMs, int Steps);

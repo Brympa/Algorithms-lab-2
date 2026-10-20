@@ -82,8 +82,8 @@
             else if (_selectedId == "team-stern-brocot")
             {
                 <div class="field" style="width:120px;">
-                    <label>Глубина (1–6)</label>
-                    <input type="number" min="1" max="6" @bind="DemoN" @bind:event="oninput" @bind:after="OnDemoNChanged" />
+                    <label>Глубина (1–8)</label>
+                    <input type="number" min="1" max="8" @bind="DemoN" @bind:event="oninput" @bind:after="OnDemoNChanged" />
                 </div>
                 <div class="field" style="width:110px;">
                     <label>Числитель p</label>
@@ -114,7 +114,7 @@
 
         <!-- Графическая сцена -->
         <div style="margin-top:16px;">
-            <div class="viz-frame" style="height:330px;">
+            <div class="viz-frame" style="height:420px;">
                 <canvas @ref="_vizCanvas" style="width:100%;height:100%;"></canvas>
             </div>
             <p class="muted" style="margin-top:8px;font-size:13px;">@_vizCaption</p>
@@ -151,14 +151,41 @@
             <h2>Замеры производительности (Бенчмарк)</h2>
             <p class="muted">Экспериментальное исследование времени выполнения T(n) и количества рекурсивных шагов</p>
 
+            @if (_selectedId == "team-stern-brocot")
+            {
+                <div class="row" style="margin-top:12px;gap:8px;align-items:center;">
+                    <span class="muted" style="font-size:13px;">Режим замера:</span>
+                    <button type="button" class="btn @(_sbBenchMode == "generate" ? "primary" : "")"
+                            style="font-size:12px;padding:4px 12px;"
+                            @onclick='() => SetSbBenchMode("generate")'>
+                        Генерация дерева O(2^N)
+                    </button>
+                    <button type="button" class="btn @(_sbBenchMode == "search" ? "primary" : "")"
+                            style="font-size:12px;padding:4px 12px;"
+                            @onclick='() => SetSbBenchMode("search")'>
+                        Поиск дроби 1/N O(N)
+                    </button>
+                </div>
+            }
+
             <div class="row" style="margin-top:14px;">
                 <div class="field">
-                    <label>N min</label>
-                    <input type="number" value="@_nMin" @oninput="e => _nMin = ParseInt(e, 1)" />
+                    <label>@(_selectedId == "team-stern-brocot" && _sbBenchMode == "generate" ? "Глубина N min" : _selectedId == "team-stern-brocot" ? "Знаменатель N min" : "N min")</label>
+                    <input type="number" 
+                           min="1" 
+                           max="@(_selectedId == "team-stern-brocot" && _sbBenchMode == "generate" ? "16" : "")"
+                           value="@_nMin" 
+                           @oninput="OnNMinInput"
+                           @onchange="OnNMinChange" />
                 </div>
                 <div class="field">
-                    <label>N max</label>
-                    <input type="number" value="@_nMax" @oninput="e => _nMax = ParseInt(e, 12)" />
+                    <label>@(_selectedId == "team-stern-brocot" && _sbBenchMode == "generate" ? "Глубина N max (1–16)" : _selectedId == "team-stern-brocot" ? "Знаменатель N max" : "N max")</label>
+                    <input type="number"
+                           min="1"
+                           max="@(_selectedId == "team-stern-brocot" && _sbBenchMode == "generate" ? "16" : "")"
+                           value="@_nMax"
+                           @oninput="OnNMaxInput"
+                           @onchange="OnNMaxChange" />
                 </div>
                 <div class="field">
                     <label>Итераций</label>
@@ -178,7 +205,11 @@
                 <div style="flex:1 1 280px;max-height:240px;overflow:auto;">
                     <table class="data">
                         <thead>
-                            <tr><th>n</th><th>мс</th><th>шаги</th></tr>
+                            <tr>
+                                <th>Параметр N</th>
+                                <th>Время T(N)</th>
+                                <th>Рекурсивных шагов</th>
+                            </tr>
                         </thead>
                         <tbody>
                             @if (_points.Count == 0)
@@ -189,12 +220,12 @@
                             }
                             else
                             {
-                                @foreach (var p in _points.TakeLast(12))
+                                @foreach (var p in _points)
                                 {
                                     <tr>
-                                        <td>@p.N</td>
-                                        <td>@p.ElapsedMs.ToString("0.###")</td>
-                                        <td>@p.Steps</td>
+                                        <td><strong>@p.N</strong></td>
+                                        <td>@FormatElapsed(p.ElapsedMs)</td>
+                                        <td>@p.Steps.ToString("N0")</td>
                                     </tr>
                                 }
                             }
@@ -227,7 +258,7 @@
             int max = _selectedId switch
             {
                 "team-integer-partitions" => 12,
-                "team-stern-brocot" => 6,
+                "team-stern-brocot" => 8,
                 "team-karatsuba" => 8,
                 _ => 12
             };
@@ -258,13 +289,14 @@
     private KaratsubaVizModel? _karatsubaModel;
 
     // Трассировка и изолированные Бенчмарки для каждого алгоритма
+    private string _sbBenchMode = "generate";
     private readonly List<TraceStep> _trace = new();
     private readonly List<BenchmarkPoint> _points = new();
     private readonly Dictionary<string, List<BenchmarkPoint>> _benchmarksByAlgo = new();
     private readonly Dictionary<string, (int NMin, int NMax, int Iters)> _benchParamsByAlgo = new()
     {
         ["team-integer-partitions"] = (1, 12, 3),
-        ["team-stern-brocot"] = (1, 10, 3),
+        ["team-stern-brocot"] = (1, 14, 3),
         ["team-karatsuba"] = (2, 16, 3)
     };
 
@@ -413,8 +445,8 @@
             // Вычисляем путь поиска
             var (pathStr, targetDepth, steps) = sb.FindPath(p, q);
 
-            // Автоматически подстраиваем глубину дерева (до 6), чтобы искомая дробь присутствовала в дереве
-            int depth = Math.Clamp(Math.Max(_demoN, targetDepth), 1, 6);
+            // Автоматически подстраиваем глубину дерева (до 8), чтобы искомая дробь присутствовала в дереве
+            int depth = Math.Clamp(Math.Max(_demoN, targetDepth), 1, 8);
             _demoN = depth;
 
             _sbSteps.Clear();
@@ -465,7 +497,7 @@
             _vizCaption = $"Дерево Штерна–Броко (глубина {depth}): поиск дроби {p}/{q}, шагов {steps}.";
             if (_vizReady)
             {
-                await DrawSbTreeAsync(sb, depth, count);
+                await DrawSbTreeAsync(sb, depth);
             }
         }
         else if (_selected.Id == "team-karatsuba" && _selected is KaratsubaAlgorithm ka)
@@ -510,8 +542,9 @@
         }
     }
 
-    private async Task DrawSbTreeAsync(SternBrocotAlgorithm sb, int depth, int count)
+    private async Task DrawSbTreeAsync(SternBrocotAlgorithm sb, int depth)
     {
+        int count = (1 << depth) - 1;
         var tree = sb.GenerateTree(depth);
         var nodes = new (double X, double Y)[count];
         var edges = new List<(int A, int B)>();
@@ -592,9 +625,9 @@
                 if (_sbSteps[i].NodeIdx >= 0)
                     _sbActiveNodes.Add(_sbSteps[i].NodeIdx);
             }
-            int depth = Math.Clamp(_demoN, 1, 6);
+            int depth = Math.Clamp(_demoN, 1, 8);
             if (_vizReady)
-                await DrawSbTreeAsync(sb, depth, sb.GenerateTree(depth).Count);
+                await DrawSbTreeAsync(sb, depth);
         }
         else if (_selectedId == "team-karatsuba" && _karatsubaModel is not null)
         {
@@ -633,9 +666,9 @@
                 if (_sbSteps[i].NodeIdx >= 0)
                     _sbActiveNodes.Add(_sbSteps[i].NodeIdx);
             }
-            int depth = Math.Clamp(_demoN, 1, 6);
+            int depth = Math.Clamp(_demoN, 1, 8);
             if (_vizReady)
-                await DrawSbTreeAsync(sb, depth, sb.GenerateTree(depth).Count);
+                await DrawSbTreeAsync(sb, depth);
         }
         else if (_selectedId == "team-karatsuba" && _karatsubaModel is not null)
         {
@@ -726,9 +759,9 @@
                 if (_sbSteps[i].NodeIdx >= 0)
                     _sbActiveNodes.Add(_sbSteps[i].NodeIdx);
             }
-            int depth = Math.Clamp(_demoN, 1, 6);
+            int depth = Math.Clamp(_demoN, 1, 8);
             if (_vizReady)
-                await DrawSbTreeAsync(sb, depth, sb.GenerateTree(depth).Count);
+                await DrawSbTreeAsync(sb, depth);
         }
         else if (_selectedId == "team-karatsuba")
         {
@@ -754,7 +787,7 @@
     {
         if (int.TryParse(e.Value?.ToString(), out var p))
         {
-            _sbP = Math.Max(1, p);
+            _sbP = Math.Clamp(p, 1, 60);
             _ = RecomputeAndRedrawVizAsync();
         }
     }
@@ -763,13 +796,67 @@
     {
         if (int.TryParse(e.Value?.ToString(), out var q))
         {
-            _sbQ = Math.Max(1, q);
+            _sbQ = Math.Clamp(q, 1, 60);
             _ = RecomputeAndRedrawVizAsync();
         }
     }
 
+    private void SetSbBenchMode(string mode)
+    {
+        _sbBenchMode = mode;
+        if (mode == "generate")
+        {
+            _nMin = 1;
+            _nMax = 14;
+        }
+        else
+        {
+            _nMin = 1;
+            _nMax = 500;
+        }
+        _points.Clear();
+        StateHasChanged();
+    }
+
+    private void OnNMinInput(ChangeEventArgs e)
+    {
+        int max = (_selectedId == "team-stern-brocot" && _sbBenchMode == "generate") ? 16 : int.MaxValue;
+        int val = ParseInt(e, 1);
+        _nMin = Math.Clamp(val, 1, max);
+    }
+
+    private void OnNMinChange(ChangeEventArgs e)
+    {
+        int max = (_selectedId == "team-stern-brocot" && _sbBenchMode == "generate") ? 16 : int.MaxValue;
+        int val = ParseInt(e, 1);
+        _nMin = Math.Clamp(val, 1, max);
+    }
+
+    private void OnNMaxInput(ChangeEventArgs e)
+    {
+        int max = (_selectedId == "team-stern-brocot" && _sbBenchMode == "generate") ? 16 : int.MaxValue;
+        int fallback = (_selectedId == "team-stern-brocot" && _sbBenchMode == "generate") ? 14 : 12;
+        int val = ParseInt(e, fallback);
+        _nMax = Math.Clamp(val, 1, max);
+    }
+
+    private void OnNMaxChange(ChangeEventArgs e)
+    {
+        int max = (_selectedId == "team-stern-brocot" && _sbBenchMode == "generate") ? 16 : int.MaxValue;
+        int fallback = (_selectedId == "team-stern-brocot" && _sbBenchMode == "generate") ? 14 : 12;
+        int val = ParseInt(e, fallback);
+        _nMax = Math.Clamp(val, 1, max);
+    }
+
     private static int ParseInt(ChangeEventArgs e, int fallback) =>
         int.TryParse(e.Value?.ToString(), out var v) ? v : fallback;
+
+    private static string FormatElapsed(double ms) =>
+        ms >= 1000
+            ? $"{(ms / 1000.0):0.###} с"
+            : ms < 0.05 && ms > 0
+                ? $"{ms:0.####} мс"
+                : $"{ms:0.###} мс";
 
     private async Task RunBenchAsync()
     {
@@ -781,21 +868,55 @@
         _benchBusy = true;
         _points.Clear();
         _status = "Замеры…";
+
+        // Сбрасываем старый график на старте нового замера
+        if (_chartReady)
+        {
+            await Chart.DrawAsync(_chartCanvas, Array.Empty<(double, double)>(), new ChartOptions(
+                LineColor: "#4f8cff",
+                PointColor: "#00e5a3",
+                Title: $"Замеры для {_selected?.Name}…",
+                XLabel: "n",
+                YLabel: "ms",
+                YLogScale: false));
+        }
+
         StateHasChanged();
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
 
         var request = new BenchmarkRequest(
             Math.Max(0, _nMin),
             Math.Max(_nMin, _nMax),
             1,
-            Math.Clamp(_iters, 1, 20));
+            Math.Clamp(_iters, 1, 20),
+            _selectedId == "team-stern-brocot" ? _sbBenchMode : "");
+
+        var lastUiSw = System.Diagnostics.Stopwatch.StartNew();
 
         try
         {
             await foreach (var p in _runner.RunAsync(request, _benchCts.Token))
             {
                 _points.Add(p);
-                StateHasChanged();
-                await Task.Yield();
+
+                // Отрисовка графика бенчмарка в реальном времени с троттлингом (не чаще раза в 50 мс или на последней точке)
+                if (_chartReady && _points.Count >= 2 && (lastUiSw.ElapsedMilliseconds >= 50 || _points.Count == request.StepsCount))
+                {
+                    lastUiSw.Restart();
+                    var livePts = _points.Select(pt => ((double)pt.N, pt.ElapsedMs)).ToList();
+                    string liveTitle = _selectedId == "team-stern-brocot" && _sbBenchMode == "search"
+                        ? $"Поиск дроби 1/N — {_selected?.Name} (точка {_points.Count} / {request.StepsCount}…)"
+                        : $"Среднее время T(n) — {_selected?.Name} (точка {_points.Count} / {request.StepsCount}…)";
+                    await Chart.DrawAsync(_chartCanvas, livePts, new ChartOptions(
+                        LineColor: "#4f8cff",
+                        PointColor: "#00e5a3",
+                        Title: liveTitle,
+                        XLabel: "n",
+                        YLabel: "ms",
+                        YLogScale: false));
+                    StateHasChanged();
+                    await Task.Yield();
+                }
             }
 
             // Сохраняем изолированные замеры для текущего алгоритма
@@ -807,16 +928,20 @@
             if (_chartReady)
             {
                 var pts = _points.Select(p => ((double)p.N, p.ElapsedMs)).ToList();
+                string finalTitle = _selectedId == "team-stern-brocot" && _sbBenchMode == "search"
+                    ? $"Поиск дроби 1/N — {_selected?.Name}"
+                    : $"Среднее время T(n) — {_selected?.Name}";
                 await Chart.DrawAsync(_chartCanvas, pts, new ChartOptions(
                     LineColor: "#4f8cff",
                     PointColor: "#00e5a3",
-                    Title: $"Среднее время от n (мс) — {_selected?.Name}",
+                    Title: finalTitle,
                     XLabel: "n",
                     YLabel: "ms",
                     YLogScale: false));
             }
 
-            _status = $"Замеры готовы · точек {_points.Count}";
+            totalSw.Stop();
+            _status = $"Замеры готовы · точек: {_points.Count} · общее время всей серии: {totalSw.Elapsed.TotalSeconds:0.1} с ({request.Iterations} итераций на каждое N)";
         }
         catch (OperationCanceledException)
         {

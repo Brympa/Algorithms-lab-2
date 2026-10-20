@@ -1,4 +1,5 @@
 using System.Numerics;
+using AlgorithmsLab2.Core.Team;
 using AlgorithmsLab2.Core.Team.Algorithms;
 
 namespace AlgorithmsLab2.Tests;
@@ -60,6 +61,55 @@ public class SternBrocotTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() => _algo.GenerateTree(4, cts.Token));
+    }
+
+    [Fact]
+    public async Task RunAsync_GenerateMode_Honors_Depth_Beyond12()
+    {
+        var req = new BenchmarkRequest(13, 14, 1, 1, Mode: "generate");
+        var points = new List<BenchmarkPoint>();
+        await foreach (var pt in _algo.RunAsync(req, CancellationToken.None))
+        {
+            points.Add(pt);
+        }
+
+        Assert.Equal(2, points.Count);
+        Assert.Equal(13, points[0].N);
+        Assert.Equal((1 << 13) - 1, points[0].Steps); // 8191, не залочено на 4095!
+        Assert.Equal(14, points[1].N);
+        Assert.Equal((1 << 14) - 1, points[1].Steps); // 16383!
+    }
+
+    [Fact]
+    public async Task RunAsync_SearchMode_Steps_Strictly_Equal_N()
+    {
+        var req = new BenchmarkRequest(100, 500, 200, 1, Mode: "search");
+        var points = new List<BenchmarkPoint>();
+        await foreach (var pt in _algo.RunAsync(req, CancellationToken.None))
+        {
+            points.Add(pt);
+        }
+
+        Assert.Equal(3, points.Count);
+        Assert.Equal(100, points[0].Steps);
+        Assert.Equal(300, points[1].Steps);
+        Assert.Equal(500, points[2].Steps); // Ровно N шагов, без полок и без 4095!
+    }
+
+    [Fact]
+    public async Task RunAsync_SearchMode_LargeN_ExecutesCleanly_WithoutStackOverflow()
+    {
+        var req = new BenchmarkRequest(1100, 1100, 1, 1, Mode: "search");
+        var points = new List<BenchmarkPoint>();
+        await foreach (var pt in _algo.RunAsync(req, CancellationToken.None))
+        {
+            points.Add(pt);
+        }
+
+        Assert.Single(points);
+        Assert.Equal(1100, points[0].N);
+        Assert.Equal(1100, points[0].Steps);
+        Assert.True(points[0].ElapsedMs >= 0.0);
     }
 }
 
@@ -159,5 +209,18 @@ public class IntegerPartitionsExtendedTests
                 Assert.True(p[i - 1] >= p[i], "Части разбиения должны быть упорядочены по невозрастанию.");
             }
         }
+    }
+
+    [Fact]
+    public void BenchmarkRequest_StepsCount_ComputesAccurately()
+    {
+        var req = new BenchmarkRequest(1, 15, 1, 5);
+        Assert.Equal(15, req.StepsCount);
+
+        var reqStep2 = new BenchmarkRequest(0, 10, 2, 3);
+        Assert.Equal(6, reqStep2.StepsCount);
+
+        var reqSingle = new BenchmarkRequest(5, 5, 1, 1);
+        Assert.Equal(1, reqSingle.StepsCount);
     }
 }
