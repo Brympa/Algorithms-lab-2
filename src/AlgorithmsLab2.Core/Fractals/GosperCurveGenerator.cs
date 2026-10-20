@@ -21,14 +21,14 @@ public sealed class GosperCurveGenerator : IFractalGenerator
         "Space-filling кривая на гексагональной решётке (flowsnake). " +
         "Строится рекурсивно: кривая порядка n состоит из 7 кривых порядка n−1 (A/B-подкривые).";
     public int DefaultOrder => 3;
-    public int MaxOrder => 5;
+    public int MaxOrder => 6;
 
     public const float Angle = 60f;
     public const float Step = 1f;
 
     public FractalGeometry Generate(FractalRequest request, CancellationToken ct = default)
     {
-        int order = Math.Clamp(request.Order, 0, 6);
+        int order = Math.Clamp(request.Order, 0, 7);
         int segments = SegmentCount(order);
 
         using var path = new PathBuilder(segments + 2);

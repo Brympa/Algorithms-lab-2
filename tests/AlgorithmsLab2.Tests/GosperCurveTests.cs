@@ -14,10 +14,12 @@ public class GosperCurveTests
     [InlineData(3, 343)]
     [InlineData(4, 2401)]
     [InlineData(5, 16807)]
+    [InlineData(6, 117649)]
     public void SegmentCount_7_pow_n(int order, int expected)
     {
         Assert.Equal(expected, GosperCurveGenerator.SegmentCount(order));
-        Assert.Equal(expected, LSystem.SegmentCountFromExpand(order));
+        if (order <= 5)
+            Assert.Equal(expected, LSystem.SegmentCountFromExpand(order));
     }
 
     [Theory]
@@ -142,9 +144,22 @@ public class GosperCurveTests
     }
 
     [Fact]
-    public void MaxOrder_Is_5_For_Demo()
+    public void MaxOrder_Is_6_For_Demo()
     {
-        Assert.Equal(5, _gen.MaxOrder);
+        Assert.Equal(6, _gen.MaxOrder);
+    }
+
+    [Fact]
+    public void SegmentCount_Order6_Returns_117649()
+    {
+        Assert.Equal(117649, GosperCurveGenerator.SegmentCount(6));
+    }
+
+    [Fact]
+    public void Generate_Order6_Has_117650_Points()
+    {
+        var g = _gen.Generate(new FractalRequest(6));
+        Assert.Equal(117650, g.PointCount);
     }
 
     private static List<(float x, float y)> InterpretLSystem(string commands)

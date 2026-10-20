@@ -4,14 +4,14 @@
 @inject MiniChartService Chart
 @inject TeamVizService Viz
 
-<PageTitle>Командные алгоритмы</PageTitle>
+<PageTitle>Командные алгоритмы — Лабораторная №2</PageTitle>
 
 <header class="page-header">
     <div>
         <h1>Командные алгоритмы</h1>
         <p>
             Рекурсивные алгоритмы: разбиение числа на слагаемые, дерево Штерна–Броко,
-            умножение Карацубы — с визуализацией, демо и замерами.
+            умножение Карацубы — с интерактивным демо, пошаговой визуализацией и замерами.
         </p>
     </div>
 </header>
@@ -20,7 +20,7 @@
     @foreach (var algo in _algos)
     {
         <div class="glass card @(algo.Id == _selectedId ? "selected-card" : "")" @onclick="() => Select(algo.Id)">
-            <div class="row" style="justify-content:space-between;align-items:center;">
+            <div class="card-header">
                 <h3>@algo.Name</h3>
                 <span class="badge accent">@algo.Slot</span>
             </div>
@@ -34,6 +34,7 @@
 
 @if (_selected is not null)
 {
+    <!-- Описание и сложность выбранного алгоритма -->
     <section class="glass panel" style="margin-top:16px;">
         <h2>@_selected.Name</h2>
         <p>@_selected.Description</p>
@@ -45,94 +46,168 @@
         </div>
     </section>
 
-    <section class="glass panel">
-        <h2>Визуализация</h2>
-        <div class="viz-frame">
-            <canvas @ref="_vizCanvas" style="width:100%;height:100%;"></canvas>
+    <!-- ЕДИНАЯ ПАНЕЛЬ: Интерактивное Демо и Визуализация (Workbench) -->
+    <section class="glass panel" style="margin-top:16px;">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+            <div>
+                <h2>Интерактивное Демо и Визуализация</h2>
+                <p class="muted">Пошаговое исследование работы алгоритма на графической сцене</p>
+            </div>
+            <div class="stat-row">
+                <span class="badge accent">@_metricLabel</span>
+                @if (_selectedId == "team-integer-partitions" && _partitionsList.Count > 0)
+                {
+                    <span class="badge">Разбиение @(_currentPartitionIdx + 1) из @_partitionsList.Count</span>
+                }
+                else if (_selectedId == "team-stern-brocot" && _sbSteps.Count > 0)
+                {
+                    <span class="badge">Шаг @(_sbStepIdx + 1) из @_sbSteps.Count</span>
+                }
+                else if (_selectedId == "team-karatsuba")
+                {
+                    <span class="badge">Шаг @(_karatsubaStepIdx + 1) из 6</span>
+                }
+            </div>
         </div>
-        <p class="muted" style="margin-top:8px;">@_vizCaption</p>
+
+        <!-- Строка управления параметрами и шагами -->
+        <div class="row" style="margin-top:14px;align-items:flex-end;">
+            @if (_selectedId == "team-integer-partitions")
+            {
+                <div class="field" style="width:140px;">
+                    <label>Число n (1–12)</label>
+                    <input type="number" min="1" max="12" @bind="DemoN" @bind:event="oninput" @bind:after="OnDemoNChanged" />
+                </div>
+            }
+            else if (_selectedId == "team-stern-brocot")
+            {
+                <div class="field" style="width:120px;">
+                    <label>Глубина (1–6)</label>
+                    <input type="number" min="1" max="6" @bind="DemoN" @bind:event="oninput" @bind:after="OnDemoNChanged" />
+                </div>
+                <div class="field" style="width:110px;">
+                    <label>Числитель p</label>
+                    <input type="number" min="1" max="60" value="@_sbP" @oninput="OnSbPInput" />
+                </div>
+                <div class="field" style="width:110px;">
+                    <label>Знаменатель q</label>
+                    <input type="number" min="1" max="60" value="@_sbQ" @oninput="OnSbQInput" />
+                </div>
+            }
+            else if (_selectedId == "team-karatsuba")
+            {
+                <div class="field" style="width:140px;">
+                    <label>Разрядов (2–8)</label>
+                    <input type="number" min="2" max="8" @bind="DemoN" @bind:event="oninput" @bind:after="OnDemoNChanged" />
+                </div>
+            }
+
+            <div class="btn-row">
+                <button class="btn primary" @onclick="ToggleAutoPlay">
+                    @(_demoAutoPlaying ? "⏸ Пауза" : "▶ Авто-демо")
+                </button>
+                <button class="btn" disabled="@_demoAutoPlaying" @onclick="StepBack">◀ Шаг</button>
+                <button class="btn" disabled="@_demoAutoPlaying" @onclick="StepForward">Шаг ▶</button>
+                <button class="btn" @onclick="ResetDemo">⏮ Сброс</button>
+            </div>
+        </div>
+
+        <!-- Графическая сцена -->
+        <div style="margin-top:16px;">
+            <div class="viz-frame" style="height:330px;">
+                <canvas @ref="_vizCanvas" style="width:100%;height:100%;"></canvas>
+            </div>
+            <p class="muted" style="margin-top:8px;font-size:13px;">@_vizCaption</p>
+        </div>
+
+        <!-- Синхронизированный лог трассировки -->
+        <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+            <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <strong style="font-size:13px;">Синхронизированная трассировка шагов</strong>
+                <span class="muted" style="font-size:12px;">(кликните по строке для быстрого перехода)</span>
+            </div>
+            <div class="trace" style="max-height:160px;overflow:auto;">
+                @for (int i = 0; i < _trace.Count; i++)
+                {
+                    var idx = i;
+                    var step = _trace[i];
+                    bool isCurrent = IsStepActive(idx);
+                    <div class="trace-row @(isCurrent ? "trace-active" : "")"
+                         style="cursor:pointer;"
+                         @onclick="() => JumpToStep(idx)">
+                        <span class="muted">#@step.Index</span>
+                        <strong>@step.Label</strong>
+                        <span>@step.Detail</span>
+                    </div>
+                }
+            </div>
+        </div>
     </section>
 
+    <!-- СЕКЦИЯ: Замеры производительности (Бенчмарк) -->
     @if (_runner is not null)
     {
-        <div class="row" style="align-items:stretch;">
-            <section class="glass panel" style="flex:1 1 320px;">
-                <h2>Демо</h2>
-                <div class="row">
-                    <div class="field">
-                        <label>n</label>
-                        <input type="number" min="0" max="40" value="@_demoN" @oninput="OnDemoN" />
-                    </div>
-                    <div class="field">
-                        <label>Метрика</label>
-                        <div class="stat-chip">@_metricLabel</div>
-                    </div>
-                </div>
-                <div class="btn-row" style="margin-top:10px;">
-                    <button class="btn primary" disabled="@_demoBusy" @onclick="RunDemoAsync">Демо</button>
-                    <button class="btn" @onclick="Cancel">Стоп</button>
-                </div>
-                <div class="trace" style="margin-top:12px;max-height:280px;overflow:auto;">
-                    @foreach (var step in _trace.Take(80))
-                    {
-                        <div class="trace-row">
-                            <span class="muted">#@step.Index</span>
-                            <strong>@step.Label</strong>
-                            <span>@step.Detail</span>
-                        </div>
-                    }
-                    @if (_trace.Count > 80)
-                    {
-                        <div class="muted">… ещё @(_trace.Count - 80)</div>
-                    }
-                </div>
-            </section>
+        <section class="glass panel" style="margin-top:16px;">
+            <h2>Замеры производительности (Бенчмарк)</h2>
+            <p class="muted">Экспериментальное исследование времени выполнения T(n) и количества рекурсивных шагов</p>
 
-            <section class="glass panel" style="flex:1 1 320px;">
-                <h2>Замеры</h2>
-                <div class="row">
-                    <div class="field">
-                        <label>N min</label>
-                        <input type="number" value="@_nMin" @oninput="e => _nMin = ParseInt(e, 1)" />
-                    </div>
-                    <div class="field">
-                        <label>N max</label>
-                        <input type="number" value="@_nMax" @oninput="e => _nMax = ParseInt(e, 12)" />
-                    </div>
-                    <div class="field">
-                        <label>Итераций</label>
-                        <input type="number" min="1" max="20" value="@_iters" @oninput="e => _iters = ParseInt(e, 3)" />
-                    </div>
+            <div class="row" style="margin-top:14px;">
+                <div class="field">
+                    <label>N min</label>
+                    <input type="number" value="@_nMin" @oninput="e => _nMin = ParseInt(e, 1)" />
                 </div>
-                <div class="btn-row" style="margin-top:10px;">
-                    <button class="btn primary" disabled="@_benchBusy" @onclick="RunBenchAsync">Замерить</button>
-                    <button class="btn" @onclick="Cancel">Стоп</button>
+                <div class="field">
+                    <label>N max</label>
+                    <input type="number" value="@_nMax" @oninput="e => _nMax = ParseInt(e, 12)" />
                 </div>
-                <div style="margin-top:12px;height:240px;">
+                <div class="field">
+                    <label>Итераций</label>
+                    <input type="number" min="1" max="20" value="@_iters" @oninput="e => _iters = ParseInt(e, 3)" />
+                </div>
+            </div>
+
+            <div class="btn-row" style="margin-top:12px;">
+                <button class="btn primary" disabled="@_benchBusy" @onclick="RunBenchAsync">Замерить</button>
+                <button class="btn" disabled="@(!_benchBusy)" @onclick="CancelBench">Стоп</button>
+            </div>
+
+            <div class="row" style="margin-top:16px;align-items:stretch;">
+                <div style="flex:1 1 360px;min-height:240px;">
                     <canvas @ref="_chartCanvas" style="width:100%;height:240px;"></canvas>
                 </div>
-                <table class="data" style="margin-top:10px;">
-                    <thead>
-                        <tr><th>n</th><th>мс</th><th>шаги</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var p in _points.TakeLast(12))
-                        {
-                            <tr>
-                                <td>@p.N</td>
-                                <td>@p.ElapsedMs.ToString("0.###")</td>
-                                <td>@p.Steps</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </section>
-        </div>
-    }
+                <div style="flex:1 1 280px;max-height:240px;overflow:auto;">
+                    <table class="data">
+                        <thead>
+                            <tr><th>n</th><th>мс</th><th>шаги</th></tr>
+                        </thead>
+                        <tbody>
+                            @if (_points.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="3" class="muted" style="text-align:center;">Нет данных замеров для @_selected.Name</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var p in _points.TakeLast(12))
+                                {
+                                    <tr>
+                                        <td>@p.N</td>
+                                        <td>@p.ElapsedMs.ToString("0.###")</td>
+                                        <td>@p.Steps</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-    @if (_status is not null)
-    {
-        <p class="muted" style="margin:12px 0;">@_status</p>
+            @if (_status is not null)
+            {
+                <p class="muted" style="margin-top:10px;">@_status</p>
+            }
+        </section>
     }
 }
 
@@ -142,24 +217,70 @@
     private IRecursiveAlgorithm? _runner;
     private string? _selectedId;
 
+    // Параметры Демо и Воркбенча с жестким клэмпингом
     private int _demoN = 5;
+    private int DemoN
+    {
+        get => _demoN;
+        set
+        {
+            int max = _selectedId switch
+            {
+                "team-integer-partitions" => 12,
+                "team-stern-brocot" => 6,
+                "team-karatsuba" => 8,
+                _ => 12
+            };
+            int min = _selectedId == "team-karatsuba" ? 2 : 1;
+            _demoN = Math.Clamp(value, min, max);
+        }
+    }
+
+    private int _sbP = 5;
+    private int _sbQ = 12;
+    private string _metricLabel = "—";
+    private string _vizCaption = "";
+    private bool _demoAutoPlaying;
+
+    // Специфичное состояние для каждого алгоритма
+    // 1. Integer Partitions
+    private List<IReadOnlyList<int>> _partitionsList = new();
+    private int _currentPartitionIdx = 0;
+
+    // 2. Stern-Brocot
+    private List<(string Decision, long Num, long Den, int NodeIdx, bool IsMatch)> _sbSteps = new();
+    private int _sbStepIdx = 0;
+    private List<int> _sbActiveNodes = new();
+    private int _sbTargetFoundNodeIdx = -1;
+
+    // 3. Karatsuba
+    private int _karatsubaStepIdx = 0;
+    private KaratsubaVizModel? _karatsubaModel;
+
+    // Трассировка и изолированные Бенчмарки для каждого алгоритма
+    private readonly List<TraceStep> _trace = new();
+    private readonly List<BenchmarkPoint> _points = new();
+    private readonly Dictionary<string, List<BenchmarkPoint>> _benchmarksByAlgo = new();
+    private readonly Dictionary<string, (int NMin, int NMax, int Iters)> _benchParamsByAlgo = new()
+    {
+        ["team-integer-partitions"] = (1, 12, 3),
+        ["team-stern-brocot"] = (1, 10, 3),
+        ["team-karatsuba"] = (2, 16, 3)
+    };
+
     private int _nMin = 1;
     private int _nMax = 12;
     private int _iters = 3;
-    private string _metricLabel = "—";
-
-    private bool _demoBusy;
     private bool _benchBusy;
-    private readonly List<TraceStep> _trace = new();
-    private readonly List<BenchmarkPoint> _points = new();
     private string? _status;
-    private string _vizCaption = "";
+
     private ElementReference _chartCanvas;
     private ElementReference _vizCanvas;
     private bool _chartReady;
     private bool _vizReady;
 
-    private CancellationTokenSource? _cts;
+    private CancellationTokenSource? _autoPlayCts;
+    private CancellationTokenSource? _benchCts;
 
     protected override async Task OnInitializedAsync()
     {
@@ -179,178 +300,484 @@
             await Viz.CreateAsync(_vizCanvas);
             _chartReady = true;
             _vizReady = true;
-            await RedrawVizAsync();
+            await RecomputeAndRedrawVizAsync();
         }
     }
 
     private async Task Select(string id)
     {
+        StopAutoPlay();
+        CancelBench();
+
+        // Сохраняем настройки предыдущего алгоритма
+        if (!string.IsNullOrEmpty(_selectedId))
+        {
+            _benchParamsByAlgo[_selectedId] = (_nMin, _nMax, _iters);
+        }
+
         _selectedId = id;
         _selected = _algos.FirstOrDefault(a => a.Id == id);
         _runner = _selected is null ? null : Catalog.Team.GetRunner(id);
-        _trace.Clear();
-        _points.Clear();
-        _status = null;
+
         _demoN = id switch
         {
             "team-integer-partitions" => 5,
-            "team-stern-brocot" => 4,
-            "team-karatsuba" => 8,
+            "team-stern-brocot" => 6,
+            "team-karatsuba" => 4,
             _ => 5
         };
-        _metricLabel = id switch
+
+        // Загружаем сохраненные параметры бенчмарка для выбранного алгоритма
+        if (_benchParamsByAlgo.TryGetValue(id, out var bp))
         {
-            "team-integer-partitions" => $"p({_demoN})",
-            "team-stern-brocot" => "вершины / шаги",
-            "team-karatsuba" => "вызовы Multiply",
-            _ => "—"
-        };
-
-        if (_vizReady)
-            await RedrawVizAsync();
-        StateHasChanged();
-    }
-
-    private async Task RedrawVizAsync()
-    {
-        if (!_vizReady || _selected is null)
-            return;
-
-        if (_selected.Id == "team-stern-brocot" && _selected is SternBrocotAlgorithm sb)
-        {
-            int depth = Math.Clamp(_demoN, 1, 6);
-            var tree = sb.GenerateTree(depth);
-            int count = tree.Count;
-            var nodes = new (double X, double Y)[count];
-            var edges = new List<(int A, int B)>();
-            var labels = new List<string>(count);
-
-            // компактный layout полного бинарного дерева (inorder → x)
-            void Place(int left, int right, int level, int maxLevel)
-            {
-                if (left > right)
-                    return;
-                int mid = (left + right) / 2;
-                double x = (mid + 0.5) / count;
-                double y = 0.12 + 0.72 * (level / Math.Max(1.0, maxLevel - 1));
-                nodes[mid] = (x, y);
-                if (left <= mid - 1)
-                {
-                    edges.Add((mid, (left + mid - 1) / 2));
-                    Place(left, mid - 1, level + 1, maxLevel);
-                }
-                if (mid + 1 <= right)
-                {
-                    edges.Add((mid, (mid + 1 + right) / 2));
-                    Place(mid + 1, right, level + 1, maxLevel);
-                }
-            }
-
-            Place(0, count - 1, 0, depth);
-            for (int i = 0; i < count; i++)
-                labels.Add(tree[i].ToString());
-
-            await Viz.DrawTreeAsync(_vizCanvas, nodes.ToList(), edges, labels);
-            _vizCaption = $"Дерево Штерна–Броко, глубина {depth}: {tree.Count} вершин.";
+            _nMin = bp.NMin;
+            _nMax = bp.NMax;
+            _iters = bp.Iters;
         }
-        else if (_selected.Id == "team-karatsuba" && _selected is KaratsubaAlgorithm ka)
-        {
-            int n = Math.Clamp(_demoN, 4, 20);
-            string xs = new string('1', n);
-            string ys = new string('2', n);
-            var log = ka.TraceMultiply(
-                System.Numerics.BigInteger.Parse(xs),
-                System.Numerics.BigInteger.Parse(ys));
-            var depths = new List<float>();
-            foreach (var line in log)
-            {
-                int indent = line.Length - line.TrimStart().Length;
-                depths.Add((indent / 2) + 1);
-            }
 
-            await Viz.DrawBarsAsync(_vizCanvas, depths, "Глубина рекурсии Карацубы (шаги разбора)");
-            _vizCaption = $"Трасса умножения {n}-значных чисел: {log.Count} шагов, 3 подвызова на уровень.";
-        }
-        else if (_selected.Id == "team-integer-partitions" && _selected is IntegerPartitionsAlgorithm ip)
+        // Загружаем изолированные точки замеров для выбранного алгоритма
+        _points.Clear();
+        if (_benchmarksByAlgo.TryGetValue(id, out var savedPoints) && savedPoints.Count > 0)
         {
-            int n = Math.Clamp(_demoN, 1, 12);
-            var parts = ip.EnumeratePartitions(n, CancellationToken.None).Take(40).ToList();
-            var sizes = parts.Select(p => (float)p.Count).ToList();
-            await Viz.DrawBarsAsync(_vizCanvas, sizes, $"Разбиения n={n}: длина каждого (кол-во слагаемых)");
-            _vizCaption = $"Первые разбиения числа {n} (показано {sizes.Count}): столбцы — число слагаемых.";
+            _points.AddRange(savedPoints);
+            if (_chartReady)
+            {
+                var pts = _points.Select(p => ((double)p.N, p.ElapsedMs)).ToList();
+                await Chart.DrawAsync(_chartCanvas, pts, new ChartOptions(
+                    LineColor: "#4f8cff",
+                    PointColor: "#00e5a3",
+                    Title: $"Среднее время от n (мс) — {_selected?.Name}",
+                    XLabel: "n",
+                    YLabel: "ms",
+                    YLogScale: false));
+            }
+            _status = $"Замеры загружены · точек {_points.Count}";
         }
         else
         {
-            await Viz.DrawBarsAsync(_vizCanvas, Array.Empty<float>(), "нет данных");
-            _vizCaption = "";
+            if (_chartReady)
+            {
+                await Chart.DrawAsync(_chartCanvas, new List<(double, double)>(), new ChartOptions(
+                    LineColor: "#4f8cff",
+                    PointColor: "#00e5a3",
+                    Title: $"Нет замеров для {_selected?.Name}",
+                    XLabel: "n",
+                    YLabel: "ms",
+                    YLogScale: false));
+            }
+            _status = null;
+        }
+
+        await RecomputeAndRedrawVizAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnDemoNChanged()
+    {
+        await RecomputeAndRedrawVizAsync();
+    }
+
+    private async Task RecomputeAndRedrawVizAsync()
+    {
+        if (_selected is null)
+            return;
+
+        _trace.Clear();
+
+        if (_selected.Id == "team-integer-partitions" && _selected is IntegerPartitionsAlgorithm ip)
+        {
+            int n = Math.Clamp(_demoN, 1, 12);
+            _partitionsList = ip.EnumeratePartitions(n, CancellationToken.None).ToList();
+            _currentPartitionIdx = 0;
+            _metricLabel = $"p({n}) = {_partitionsList.Count}";
+
+            _trace.Add(new TraceStep(0, "Старт", $"Разбиение числа n = {n}"));
+            for (int i = 0; i < _partitionsList.Count; i++)
+            {
+                _trace.Add(new TraceStep(i + 1, $"#{i + 1}", string.Join(" + ", _partitionsList[i])));
+            }
+            _trace.Add(new TraceStep(_trace.Count, "Итог", $"Всего вариантов: p({n}) = {_partitionsList.Count}"));
+
+            _vizCaption = $"Диаграмма Юнга разбиения #{_currentPartitionIdx + 1}: {n} = {string.Join(" + ", _partitionsList[_currentPartitionIdx])}";
+            if (_vizReady)
+            {
+                await Viz.DrawYoungDiagramAsync(_vizCanvas, _partitionsList[_currentPartitionIdx], n);
+            }
+        }
+        else if (_selected.Id == "team-stern-brocot" && _selected is SternBrocotAlgorithm sb)
+        {
+            long p = Math.Max(1, _sbP);
+            long q = Math.Max(1, _sbQ);
+            _metricLabel = $"Поиск {p}/{q}";
+
+            // Вычисляем путь поиска
+            var (pathStr, targetDepth, steps) = sb.FindPath(p, q);
+
+            // Автоматически подстраиваем глубину дерева (до 6), чтобы искомая дробь присутствовала в дереве
+            int depth = Math.Clamp(Math.Max(_demoN, targetDepth), 1, 6);
+            _demoN = depth;
+
+            _sbSteps.Clear();
+            _sbActiveNodes.Clear();
+            _sbTargetFoundNodeIdx = -1;
+
+            var tree = sb.GenerateTree(depth);
+            int count = tree.Count;
+
+            _trace.Add(new TraceStep(0, "Цель", $"Поиск дроби {p}/{q} в дереве Штерна–Броко"));
+
+            long a = 0, b = 1, c = 1, dDen = 0;
+            for (int step = 0; step < pathStr.Length; step++)
+            {
+                char ch = pathStr[step];
+                long m = a + c;
+                long n = b + dDen;
+                bool isMatch = (ch == '*');
+                string dir = isMatch ? "Совпадение!" : ch == 'L' ? "Влево (< медианты)" : "Вправо (> медианты)";
+                _trace.Add(new TraceStep(step + 1, $"Шаг {step + 1}: {m}/{n}", $"{dir} (интервал [{a}/{b}; {c}/{dDen}])"));
+
+                // Ищем точное совпадение узла в текущем дереве
+                int foundIdx = -1;
+                for (int ti = 0; ti < tree.Count; ti++)
+                {
+                    if (tree[ti].Num == m && tree[ti].Den == n)
+                    {
+                        foundIdx = ti;
+                        break;
+                    }
+                }
+
+                if (isMatch && foundIdx >= 0)
+                {
+                    _sbTargetFoundNodeIdx = foundIdx;
+                }
+
+                _sbSteps.Add((dir, m, n, foundIdx, isMatch));
+
+                if (ch == 'L') { c = m; dDen = n; }
+                else if (ch == 'R') { a = m; b = n; }
+            }
+
+            _sbStepIdx = 0;
+            if (_sbSteps.Count > 0 && _sbSteps[0].NodeIdx >= 0)
+                _sbActiveNodes.Add(_sbSteps[0].NodeIdx);
+
+            _vizCaption = $"Дерево Штерна–Броко (глубина {depth}): поиск дроби {p}/{q}, шагов {steps}.";
+            if (_vizReady)
+            {
+                await DrawSbTreeAsync(sb, depth, count);
+            }
+        }
+        else if (_selected.Id == "team-karatsuba" && _selected is KaratsubaAlgorithm ka)
+        {
+            int n = Math.Clamp(_demoN, 2, 8);
+            _metricLabel = $"Карацуба: {n} разрядов";
+            _karatsubaStepIdx = 0;
+
+            string xs = "12345678"[..n];
+            string ys = "56781234"[..n];
+            var x = System.Numerics.BigInteger.Parse(xs);
+            var y = System.Numerics.BigInteger.Parse(ys);
+
+            int m = Math.Max(1, n / 2);
+            var B = System.Numerics.BigInteger.Pow(10, m);
+            var a = System.Numerics.BigInteger.DivRem(x, B, out var b);
+            var c = System.Numerics.BigInteger.DivRem(y, B, out var d);
+
+            var ac = a * c;
+            var bd = b * d;
+            var sumProd = (a + b) * (c + d);
+            var middle = sumProd - ac - bd;
+            var res = x * y;
+
+            _karatsubaModel = new KaratsubaVizModel(
+                xs, ys, m,
+                a.ToString(), b.ToString(), c.ToString(), d.ToString(),
+                ac.ToString(), bd.ToString(), sumProd.ToString(), middle.ToString(), res.ToString());
+
+            _trace.Add(new TraceStep(0, "Деление", $"X = {a}·10^{m} + {b}, Y = {c}·10^{m} + {d}"));
+            _trace.Add(new TraceStep(1, "z₂ = ac", $"{a} × {c} = {ac}"));
+            _trace.Add(new TraceStep(2, "z₀ = bd", $"{b} × {d} = {bd}"));
+            _trace.Add(new TraceStep(3, "z₁ = (a+b)(c+d)", $"({a}+{b}) × ({c}+{d}) = {sumProd}"));
+            _trace.Add(new TraceStep(4, "middle", $"z₁ − z₂ − z₀ = {middle}"));
+            _trace.Add(new TraceStep(5, "Сборка", $"XY = {res}"));
+
+            _vizCaption = $"Умножение {xs} × {ys}: разложение на 3 подвызова, основание 10^{m}.";
+            if (_vizReady && _karatsubaModel is not null)
+            {
+                await Viz.DrawKaratsubaTreeAsync(_vizCanvas, _karatsubaModel, _karatsubaStepIdx);
+            }
         }
     }
 
-    private void OnDemoN(ChangeEventArgs e)
+    private async Task DrawSbTreeAsync(SternBrocotAlgorithm sb, int depth, int count)
     {
-        if (int.TryParse(e.Value?.ToString(), out var n))
+        var tree = sb.GenerateTree(depth);
+        var nodes = new (double X, double Y)[count];
+        var edges = new List<(int A, int B)>();
+        var labels = new List<string>(count);
+
+        void Place(int left, int right, int level, int maxLevel)
         {
-            _demoN = n;
-            if (_selected?.Id == "team-integer-partitions")
-                _metricLabel = $"p({Math.Clamp(n, 0, 30)})";
-            _ = RedrawVizAsync();
+            if (left > right) return;
+            int mid = (left + right) / 2;
+            double x = (mid + 0.5) / count;
+            double y = 0.12 + 0.72 * (level / Math.Max(1.0, maxLevel - 1));
+            nodes[mid] = (x, y);
+            if (left <= mid - 1)
+            {
+                edges.Add((mid, (left + mid - 1) / 2));
+                Place(left, mid - 1, level + 1, maxLevel);
+            }
+            if (mid + 1 <= right)
+            {
+                edges.Add((mid, (mid + 1 + right) / 2));
+                Place(mid + 1, right, level + 1, maxLevel);
+            }
+        }
+
+        Place(0, count - 1, 0, depth);
+        for (int i = 0; i < count; i++)
+            labels.Add(tree[i].ToString());
+
+        var currentStepInfo = _sbSteps.Count > _sbStepIdx ? _sbSteps[_sbStepIdx] : default;
+        bool isStepMatch = currentStepInfo.IsMatch;
+        int activeMatchedIdx = (isStepMatch && currentStepInfo.NodeIdx >= 0) ? currentStepInfo.NodeIdx : -1;
+
+        string sub = "";
+        if (_sbSteps.Count > _sbStepIdx)
+        {
+            if (isStepMatch)
+            {
+                sub = currentStepInfo.NodeIdx >= 0
+                    ? $"Шаг {_sbStepIdx + 1}: {currentStepInfo.Num}/{currentStepInfo.Den} — Совпадение найдено в узле дерева!"
+                    : $"Шаг {_sbStepIdx + 1}: {currentStepInfo.Num}/{currentStepInfo.Den} — Совпадение (узел на глубине {_sbStepIdx + 1}, ниже дерева)";
+            }
+            else
+            {
+                sub = $"Шаг {_sbStepIdx + 1}: медианта {currentStepInfo.Num}/{currentStepInfo.Den} — {currentStepInfo.Decision}";
+            }
+        }
+
+        await Viz.DrawSternBrocotTreeAsync(
+            _vizCanvas,
+            nodes.ToList(),
+            edges,
+            labels,
+            _sbActiveNodes,
+            new {
+                title = $"Дерево Штерна–Броко (поиск {_sbP}/{_sbQ})",
+                subtitle = sub,
+                isMatch = isStepMatch,
+                matchedNodeIdx = activeMatchedIdx
+            });
+    }
+
+    private async Task StepForward()
+    {
+        if (_selectedId == "team-integer-partitions" && _partitionsList.Count > 0)
+        {
+            _currentPartitionIdx = (_currentPartitionIdx + 1) % _partitionsList.Count;
+            var parts = _partitionsList[_currentPartitionIdx];
+            _vizCaption = $"Диаграмма Юнга разбиения #{_currentPartitionIdx + 1}: {_demoN} = {string.Join(" + ", parts)}";
+            if (_vizReady)
+                await Viz.DrawYoungDiagramAsync(_vizCanvas, parts, _demoN);
+        }
+        else if (_selectedId == "team-stern-brocot" && _sbSteps.Count > 0 && _selected is SternBrocotAlgorithm sb)
+        {
+            _sbStepIdx = (_sbStepIdx + 1) % _sbSteps.Count;
+            _sbActiveNodes.Clear();
+            for (int i = 0; i <= _sbStepIdx; i++)
+            {
+                if (_sbSteps[i].NodeIdx >= 0)
+                    _sbActiveNodes.Add(_sbSteps[i].NodeIdx);
+            }
+            int depth = Math.Clamp(_demoN, 1, 6);
+            if (_vizReady)
+                await DrawSbTreeAsync(sb, depth, sb.GenerateTree(depth).Count);
+        }
+        else if (_selectedId == "team-karatsuba" && _karatsubaModel is not null)
+        {
+            _karatsubaStepIdx = (_karatsubaStepIdx + 1) % 6;
+            _vizCaption = _karatsubaStepIdx switch
+            {
+                0 => $"Разделение чисел: X={_karatsubaModel.X}, Y={_karatsubaModel.Y}",
+                1 => $"Ветвь 1: умножение старших половин z₂ = a × c = {_karatsubaModel.Ac}",
+                2 => $"Ветвь 2: умножение младших половин z₀ = b × d = {_karatsubaModel.Bd}",
+                3 => $"Ветвь 3: умножение сумм половин z₁ = (a+b)(c+d) = {_karatsubaModel.SumProd}",
+                4 => $"Вычисление среднего члена: middle = z₁ − z₂ − z₀ = {_karatsubaModel.Middle}",
+                _ => $"Итоговая сборка: {_karatsubaModel.Result} (3 умножения вместо 4!)"
+            };
+            if (_vizReady)
+                await Viz.DrawKaratsubaTreeAsync(_vizCanvas, _karatsubaModel, _karatsubaStepIdx);
+        }
+        StateHasChanged();
+    }
+
+    private async Task StepBack()
+    {
+        if (_selectedId == "team-integer-partitions" && _partitionsList.Count > 0)
+        {
+            _currentPartitionIdx = (_currentPartitionIdx - 1 + _partitionsList.Count) % _partitionsList.Count;
+            var parts = _partitionsList[_currentPartitionIdx];
+            _vizCaption = $"Диаграмма Юнга разбиения #{_currentPartitionIdx + 1}: {_demoN} = {string.Join(" + ", parts)}";
+            if (_vizReady)
+                await Viz.DrawYoungDiagramAsync(_vizCanvas, parts, _demoN);
+        }
+        else if (_selectedId == "team-stern-brocot" && _sbSteps.Count > 0 && _selected is SternBrocotAlgorithm sb)
+        {
+            _sbStepIdx = (_sbStepIdx - 1 + _sbSteps.Count) % _sbSteps.Count;
+            _sbActiveNodes.Clear();
+            for (int i = 0; i <= _sbStepIdx; i++)
+            {
+                if (_sbSteps[i].NodeIdx >= 0)
+                    _sbActiveNodes.Add(_sbSteps[i].NodeIdx);
+            }
+            int depth = Math.Clamp(_demoN, 1, 6);
+            if (_vizReady)
+                await DrawSbTreeAsync(sb, depth, sb.GenerateTree(depth).Count);
+        }
+        else if (_selectedId == "team-karatsuba" && _karatsubaModel is not null)
+        {
+            _karatsubaStepIdx = (_karatsubaStepIdx - 1 + 6) % 6;
+            _vizCaption = _karatsubaStepIdx switch
+            {
+                0 => $"Разделение чисел: X={_karatsubaModel.X}, Y={_karatsubaModel.Y}",
+                1 => $"Ветвь 1: умножение старших половин z₂ = a × c = {_karatsubaModel.Ac}",
+                2 => $"Ветвь 2: умножение младших половин z₀ = b × d = {_karatsubaModel.Bd}",
+                3 => $"Ветвь 3: умножение сумм половин z₁ = (a+b)(c+d) = {_karatsubaModel.SumProd}",
+                4 => $"Вычисление среднего члена: middle = z₁ − z₂ − z₀ = {_karatsubaModel.Middle}",
+                _ => $"Итоговая сборка: {_karatsubaModel.Result} (3 умножения вместо 4!)"
+            };
+            if (_vizReady)
+                await Viz.DrawKaratsubaTreeAsync(_vizCanvas, _karatsubaModel, _karatsubaStepIdx);
+        }
+        StateHasChanged();
+    }
+
+    private async Task ResetDemo()
+    {
+        StopAutoPlay();
+        _currentPartitionIdx = 0;
+        _sbStepIdx = 0;
+        _karatsubaStepIdx = 0;
+        await RecomputeAndRedrawVizAsync();
+        StateHasChanged();
+    }
+
+    private void ToggleAutoPlay()
+    {
+        if (_demoAutoPlaying)
+        {
+            StopAutoPlay();
+        }
+        else
+        {
+            _demoAutoPlaying = true;
+            _autoPlayCts = new CancellationTokenSource();
+            _ = AutoPlayLoopAsync(_autoPlayCts.Token);
+        }
+    }
+
+    private void StopAutoPlay()
+    {
+        _demoAutoPlaying = false;
+        _autoPlayCts?.Cancel();
+        _autoPlayCts?.Dispose();
+        _autoPlayCts = null;
+    }
+
+    private async Task AutoPlayLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested && _demoAutoPlaying)
+            {
+                await Task.Delay(500, ct);
+                if (ct.IsCancellationRequested) break;
+                await StepForward();
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            _demoAutoPlaying = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task JumpToStep(int stepIndex)
+    {
+        StopAutoPlay();
+        if (_selectedId == "team-integer-partitions" && stepIndex >= 1 && stepIndex <= _partitionsList.Count)
+        {
+            _currentPartitionIdx = stepIndex - 1;
+            var parts = _partitionsList[_currentPartitionIdx];
+            _vizCaption = $"Диаграмма Юнга разбиения #{_currentPartitionIdx + 1}: {_demoN} = {string.Join(" + ", parts)}";
+            if (_vizReady)
+                await Viz.DrawYoungDiagramAsync(_vizCanvas, parts, _demoN);
+        }
+        else if (_selectedId == "team-stern-brocot" && stepIndex >= 1 && stepIndex <= _sbSteps.Count && _selected is SternBrocotAlgorithm sb)
+        {
+            _sbStepIdx = stepIndex - 1;
+            _sbActiveNodes.Clear();
+            for (int i = 0; i <= _sbStepIdx; i++)
+            {
+                if (_sbSteps[i].NodeIdx >= 0)
+                    _sbActiveNodes.Add(_sbSteps[i].NodeIdx);
+            }
+            int depth = Math.Clamp(_demoN, 1, 6);
+            if (_vizReady)
+                await DrawSbTreeAsync(sb, depth, sb.GenerateTree(depth).Count);
+        }
+        else if (_selectedId == "team-karatsuba")
+        {
+            _karatsubaStepIdx = Math.Clamp(stepIndex, 0, 5);
+            if (_vizReady && _karatsubaModel is not null)
+                await Viz.DrawKaratsubaTreeAsync(_vizCanvas, _karatsubaModel, _karatsubaStepIdx);
+        }
+        StateHasChanged();
+    }
+
+    private bool IsStepActive(int stepIndex)
+    {
+        if (_selectedId == "team-integer-partitions")
+            return stepIndex == _currentPartitionIdx + 1;
+        if (_selectedId == "team-stern-brocot")
+            return stepIndex == _sbStepIdx + 1;
+        if (_selectedId == "team-karatsuba")
+            return stepIndex == _karatsubaStepIdx;
+        return false;
+    }
+
+    private void OnSbPInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var p))
+        {
+            _sbP = Math.Max(1, p);
+            _ = RecomputeAndRedrawVizAsync();
+        }
+    }
+
+    private void OnSbQInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var q))
+        {
+            _sbQ = Math.Max(1, q);
+            _ = RecomputeAndRedrawVizAsync();
         }
     }
 
     private static int ParseInt(ChangeEventArgs e, int fallback) =>
         int.TryParse(e.Value?.ToString(), out var v) ? v : fallback;
 
-    private async Task RunDemoAsync()
-    {
-        if (_runner is null)
-            return;
-
-        Cancel();
-        _cts = new CancellationTokenSource();
-        _demoBusy = true;
-        _trace.Clear();
-        _status = "Демо…";
-        StateHasChanged();
-
-        try
-        {
-            await foreach (var step in _runner.DemoAsync(new DemoRequest(_demoN), _cts.Token))
-            {
-                _trace.Add(step);
-                if (_trace.Count % 16 == 0)
-                {
-                    StateHasChanged();
-                    await Task.Yield();
-                }
-            }
-
-            if (_selected?.Id == "team-integer-partitions" && _selected is IntegerPartitionsAlgorithm ip)
-                _metricLabel = $"p({_demoN}) = {ip.CountPartitions(Math.Clamp(_demoN, 0, 30))}";
-
-            _status = $"Демо готово · шагов {_trace.Count}";
-        }
-        catch (OperationCanceledException)
-        {
-            _status = "Демо отменено";
-        }
-        catch (Exception ex)
-        {
-            _status = $"Демо: {ex.Message}";
-        }
-        finally
-        {
-            _demoBusy = false;
-            StateHasChanged();
-        }
-    }
-
     private async Task RunBenchAsync()
     {
         if (_runner is null)
             return;
 
-        Cancel();
-        _cts = new CancellationTokenSource();
+        CancelBench();
+        _benchCts = new CancellationTokenSource();
         _benchBusy = true;
         _points.Clear();
         _status = "Замеры…";
@@ -364,20 +791,26 @@
 
         try
         {
-            await foreach (var p in _runner.RunAsync(request, _cts.Token))
+            await foreach (var p in _runner.RunAsync(request, _benchCts.Token))
             {
                 _points.Add(p);
                 StateHasChanged();
                 await Task.Yield();
             }
 
+            // Сохраняем изолированные замеры для текущего алгоритма
+            if (!string.IsNullOrEmpty(_selectedId))
+            {
+                _benchmarksByAlgo[_selectedId] = new List<BenchmarkPoint>(_points);
+            }
+
             if (_chartReady)
             {
                 var pts = _points.Select(p => ((double)p.N, p.ElapsedMs)).ToList();
                 await Chart.DrawAsync(_chartCanvas, pts, new ChartOptions(
-                    LineColor: "#5b8cff",
-                    PointColor: "#7cffcb",
-                    Title: "Среднее время от n (мс)",
+                    LineColor: "#4f8cff",
+                    PointColor: "#00e5a3",
+                    Title: $"Среднее время от n (мс) — {_selected?.Name}",
                     XLabel: "n",
                     YLabel: "ms",
                     YLogScale: false));
@@ -400,16 +833,17 @@
         }
     }
 
-    private void Cancel()
+    private void CancelBench()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = null;
+        _benchCts?.Cancel();
+        _benchCts?.Dispose();
+        _benchCts = null;
     }
 
     public async ValueTask DisposeAsync()
     {
-        Cancel();
+        StopAutoPlay();
+        CancelBench();
         await Viz.DisposeAsync();
     }
 }

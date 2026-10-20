@@ -118,3 +118,46 @@ public class KaratsubaTests
             _algo.Multiply(x, y, ct: cts.Token));
     }
 }
+
+public class IntegerPartitionsExtendedTests
+{
+    private readonly IntegerPartitionsAlgorithm _algo = new();
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(3, 3)]
+    [InlineData(4, 5)]
+    [InlineData(5, 7)]
+    [InlineData(6, 11)]
+    [InlineData(7, 15)]
+    [InlineData(8, 22)]
+    [InlineData(10, 42)]
+    public void CountPartitions_Matches_Known_P_n(int n, int expected)
+    {
+        Assert.Equal(expected, _algo.CountPartitions(n));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void EnumeratePartitions_AllSumsEqual_N(int n)
+    {
+        var list = _algo.EnumeratePartitions(n, CancellationToken.None).ToList();
+        Assert.Equal(_algo.CountPartitions(n), list.Count);
+        foreach (var p in list)
+        {
+            Assert.Equal(n, p.Sum());
+            // Проверка невозрастания a_1 >= a_2 >= ...
+            for (int i = 1; i < p.Count; i++)
+            {
+                Assert.True(p[i - 1] >= p[i], "Части разбиения должны быть упорядочены по невозрастанию.");
+            }
+        }
+    }
+}

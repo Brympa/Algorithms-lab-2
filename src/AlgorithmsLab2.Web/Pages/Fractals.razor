@@ -14,7 +14,6 @@
             порядок n — 7 кривых n−1. Сегментов: 7<sup>n</sup>. Рендер — Canvas, данные — TypedArray.
         </p>
     </div>
-    <span class="badge accent">Рекурсия · Canvas</span>
 </header>
 
 @if (_generator is null)
@@ -29,7 +28,7 @@
 
     <div class="row" style="margin-top:12px;">
         <div class="field" style="min-width:220px;">
-            <label>Порядок n = @_order (max @_generator.MaxOrder)</label>
+            <label>Порядок n = @_order (max @_maxOrder)</label>
             <input type="range" min="0" max="@_maxOrder" step="1" value="@_order"
                    @oninput="OnOrderInput" />
         </div>
@@ -51,6 +50,14 @@
             <div class="stat-chip">@_drawMs.ToString("0.0") мс</div>
         </div>
     </div>
+
+    @if (_order >= 6)
+    {
+        <div class="stat-row" style="margin-top:10px;">
+            <span class="badge accent">Высокая детализация: @_segments.ToString("N0") сегментов</span>
+            <span class="muted" style="font-size:12px;align-self:center;">Отрисовка адаптирована для повышенной плотности</span>
+        </div>
+    }
 
     <div class="btn-row" style="margin-top:12px;">
         <button class="btn primary" disabled="@_busy" @onclick="GenerateAsync">Построить</button>
@@ -145,7 +152,7 @@
 
     private void UpdateSegments()
     {
-        _segments = _order <= 0 ? 1 : (long)Math.Pow(7, Math.Min(_order, 6));
+        _segments = _order <= 0 ? 1 : (long)Math.Pow(7, _order);
     }
 
     private async Task GenerateAsync()
@@ -156,14 +163,16 @@
         _busy = true;
         _status = "Генерация…";
         StateHasChanged();
+        await Task.Delay(1); // Даем браузеру отрисовать лоадер/статус перед вычислением
 
         try
         {
             int order = Math.Clamp(_order, 0, _maxOrder);
             var sw = System.Diagnostics.Stopwatch.StartNew();
 
-            // Core — чистая рекурсия. На WASM один поток: yield, чтобы UI успел перерисоваться.
-            _geometry = _generator.Generate(new FractalRequest(order));
+            // Core — чистая рекурсия с поддержкой отмены.
+            var ct = _debounceCts?.Token ?? default;
+            _geometry = _generator.Generate(new FractalRequest(order), ct);
             await Task.Yield();
 
             sw.Stop();

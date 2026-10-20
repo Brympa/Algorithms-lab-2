@@ -4,7 +4,21 @@ using Microsoft.JSInterop;
 
 namespace AlgorithmsLab2.Web.Services;
 
-/// <summary>Визуализация деревьев/разбиений для командных алгоритмов.</summary>
+public sealed record KaratsubaVizModel(
+    string X,
+    string Y,
+    int M,
+    string A,
+    string B,
+    string C,
+    string D,
+    string Ac,
+    string Bd,
+    string SumProd,
+    string Middle,
+    string Result);
+
+/// <summary>Интерактивная визуализация для командных алгоритмов (Юнг, Штерн-Броко, Карацуба).</summary>
 public sealed class TeamVizService : IAsyncDisposable
 {
     private readonly IJSRuntime _js;
@@ -22,6 +36,50 @@ public sealed class TeamVizService : IAsyncDisposable
     {
         var m = await ModuleAsync();
         await m.InvokeVoidAsync("createViz", canvas);
+    }
+
+    public async Task DrawYoungDiagramAsync(
+        ElementReference canvas,
+        IReadOnlyList<int> parts,
+        int totalN,
+        string? info = null)
+    {
+        var m = await ModuleAsync();
+        await m.InvokeVoidAsync("drawYoungDiagram", canvas, parts, totalN, info);
+    }
+
+    public async Task DrawSternBrocotTreeAsync(
+        ElementReference canvas,
+        IReadOnlyList<(double X, double Y)> nodes,
+        IReadOnlyList<(int A, int B)> edges,
+        IReadOnlyList<string> labels,
+        IReadOnlyList<int> activeIndices,
+        object? info = null)
+    {
+        var m = await ModuleAsync();
+        float[] xy = new float[nodes.Count * 2];
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            xy[i * 2] = (float)nodes[i].X;
+            xy[i * 2 + 1] = (float)nodes[i].Y;
+        }
+
+        int[] e = new int[edges.Count * 2];
+        for (int i = 0; i < edges.Count; i++)
+        {
+            e[i * 2] = edges[i].A;
+            e[i * 2 + 1] = edges[i].B;
+        }
+
+        byte[] nodeBytes = MemoryMarshal.AsBytes(xy.AsSpan()).ToArray();
+        byte[] edgeBytes = MemoryMarshal.AsBytes(e.AsSpan()).ToArray();
+        await m.InvokeVoidAsync("drawSternBrocotTree", canvas, nodeBytes, edgeBytes, labels, activeIndices, info);
+    }
+
+    public async Task DrawKaratsubaTreeAsync(ElementReference canvas, KaratsubaVizModel model, int currentStep = 5)
+    {
+        var m = await ModuleAsync();
+        await m.InvokeVoidAsync("drawKaratsubaTree", canvas, model, currentStep);
     }
 
     public async Task DrawTreeAsync(

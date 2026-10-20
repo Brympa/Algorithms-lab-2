@@ -98,12 +98,16 @@ export function drawPolyline(canvas, xyBytes, options) {
     path.lineTo(x, y);
   }
 
+  const isHighDensity = count > 40000;
   const lw = (opts.lineWidth != null ? opts.lineWidth : 1.5) * dpr;
-  if (opts.glow) {
+  const join = isHighDensity ? "miter" : "round";
+  const cap = isHighDensity ? "butt" : "round";
+
+  if (opts.glow && !isHighDensity) {
     ctx.strokeStyle = opts.glow;
     ctx.lineWidth = lw * 2.2;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
+    ctx.lineJoin = join;
+    ctx.lineCap = cap;
     ctx.globalAlpha = 0.35;
     ctx.stroke(path);
     ctx.globalAlpha = 1;
@@ -111,8 +115,8 @@ export function drawPolyline(canvas, xyBytes, options) {
 
   ctx.strokeStyle = opts.lineColor || "#5b8cff";
   ctx.lineWidth = lw;
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
+  ctx.lineJoin = join;
+  ctx.lineCap = cap;
   ctx.stroke(path);
 
   ctx.restore();
