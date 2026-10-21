@@ -1,4 +1,7 @@
 @echo off
+chcp 65001 >nul
+setlocal
+
 where dotnet >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     echo [ОШИБКА] .NET SDK NOT FOUND IN PATH!
