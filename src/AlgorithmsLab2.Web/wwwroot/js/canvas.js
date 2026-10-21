@@ -135,6 +135,15 @@ export function createHost(canvas) {
   canvas.addEventListener("dblclick", onDblClick);
   canvas.style.cursor = "grab";
 
+  const onThemeChange = () => {
+    if (!canvas || !canvas.isConnected) {
+      window.removeEventListener("themechange", onThemeChange);
+      return;
+    }
+    redraw(canvas);
+  };
+  window.addEventListener("themechange", onThemeChange);
+
   const ro = new ResizeObserver(() => {
     resize(canvas);
     redraw(canvas);
@@ -142,7 +151,7 @@ export function createHost(canvas) {
   ro.observe(canvas);
 
   state.ro = ro;
-  state._listeners = { onWheel, onPointerDown, onPointerMove, onPointerUp, onDblClick };
+  state._listeners = { onWheel, onPointerDown, onPointerMove, onPointerUp, onDblClick, onThemeChange };
   canvas.__gosper = state;
 
   resize(canvas);
@@ -162,6 +171,9 @@ export function disposeHost(canvas) {
     canvas.removeEventListener("pointerup", s._listeners.onPointerUp);
     canvas.removeEventListener("pointercancel", s._listeners.onPointerUp);
     canvas.removeEventListener("dblclick", s._listeners.onDblClick);
+    if (s._listeners.onThemeChange) {
+      window.removeEventListener("themechange", s._listeners.onThemeChange);
+    }
   }
   canvas.__gosper = null;
 }
@@ -316,17 +328,21 @@ function renderGosper(canvas, xyBytes, options) {
   const join = isHighDensity ? "miter" : "round";
   const cap = isHighDensity ? "butt" : "round";
 
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  const defaultLineColor = isLight ? "#2563eb" : "#5b8cff";
+  const lineColor = opts.lineColor && opts.lineColor !== "#5b8cff" ? opts.lineColor : defaultLineColor;
+
   if (opts.glow && !isHighDensity) {
-    ctx.strokeStyle = opts.glow;
+    ctx.strokeStyle = isLight ? "rgba(37, 99, 235, 0.28)" : opts.glow;
     ctx.lineWidth = lw * 2.2;
     ctx.lineJoin = join;
     ctx.lineCap = cap;
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = isLight ? 0.25 : 0.35;
     ctx.stroke(path);
     ctx.globalAlpha = 1;
   }
 
-  ctx.strokeStyle = opts.lineColor || "#5b8cff";
+  ctx.strokeStyle = lineColor;
   ctx.lineWidth = lw;
   ctx.lineJoin = join;
   ctx.lineCap = cap;
@@ -394,53 +410,62 @@ function renderGosper(canvas, xyBytes, options) {
     }
   ];
 
+  const pillBg = isLight ? "rgba(255, 255, 255, 0.9)" : "rgba(18, 26, 44, 0.8)";
+  const pillBorder = isLight ? "rgba(15, 23, 42, 0.12)" : "rgba(255, 255, 255, 0.1)";
+  const pillText = isLight ? "#475569" : "#95a3bf";
+
+  const btnBg = isLight ? "rgba(255, 255, 255, 0.95)" : "rgba(26, 38, 64, 0.85)";
+  const btnBorder = isLight ? "rgba(37, 99, 235, 0.4)" : "rgba(79, 140, 255, 0.5)";
+  const btnText = isLight ? "#1e293b" : "#ffffff";
+  const hintColor = isLight ? "rgba(71, 85, 105, 0.9)" : "rgba(149, 163, 191, 0.85)";
+
   // 1. Zoom info pill
   const zoomText = `${Math.round(t.scale * 100)}%`;
   ctx.font = `600 ${11 * dpr}px ui-monospace, monospace`;
   const zoomW = ctx.measureText(zoomText).width + 16 * dpr;
   const zoomPillX = plusBtnX - zoomW - 8 * dpr;
 
-  drawGlassCard(ctx, zoomPillX, hudTop, zoomW, btnH, 5 * dpr, "rgba(18, 26, 44, 0.8)", "rgba(255, 255, 255, 0.1)");
-  ctx.fillStyle = "#95a3bf";
+  drawGlassCard(ctx, zoomPillX, hudTop, zoomW, btnH, 5 * dpr, pillBg, pillBorder);
+  ctx.fillStyle = pillText;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(zoomText, zoomPillX + zoomW / 2, hudTop + btnH / 2);
 
   // 2. Button [+]
-  drawGlassCard(ctx, plusBtnX, hudTop, btnW, btnH, 5 * dpr, "rgba(26, 38, 64, 0.85)", "rgba(79, 140, 255, 0.5)");
+  drawGlassCard(ctx, plusBtnX, hudTop, btnW, btnH, 5 * dpr, btnBg, btnBorder);
   ctx.font = `700 ${14 * dpr}px ui-sans-serif, system-ui, sans-serif`;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = btnText;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("+", plusBtnX + btnW / 2, hudTop + btnH / 2);
 
   // 3. Button [−]
-  drawGlassCard(ctx, minusBtnX, hudTop, btnW, btnH, 5 * dpr, "rgba(26, 38, 64, 0.85)", "rgba(79, 140, 255, 0.5)");
+  drawGlassCard(ctx, minusBtnX, hudTop, btnW, btnH, 5 * dpr, btnBg, btnBorder);
   ctx.font = `700 ${14 * dpr}px ui-sans-serif, system-ui, sans-serif`;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = btnText;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("−", minusBtnX + btnW / 2, hudTop + btnH / 2);
 
   // 4. Button [⊡ Обзор]
-  drawGlassCard(ctx, fitBtnX, hudTop, fitW, btnH, 5 * dpr, "rgba(26, 38, 64, 0.85)", "rgba(79, 140, 255, 0.5)");
+  drawGlassCard(ctx, fitBtnX, hudTop, fitW, btnH, 5 * dpr, btnBg, btnBorder);
   ctx.font = `600 ${11 * dpr}px ui-sans-serif, system-ui, sans-serif`;
-  ctx.fillStyle = "#e8eefc";
+  ctx.fillStyle = btnText;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("⊡ Обзор", fitBtnX + fitW / 2, hudTop + btnH / 2);
 
   // 5. Button [⟲ Сброс]
-  drawGlassCard(ctx, resetBtnX, hudTop, resetW, btnH, 5 * dpr, "rgba(26, 38, 64, 0.85)", "rgba(79, 140, 255, 0.5)");
+  drawGlassCard(ctx, resetBtnX, hudTop, resetW, btnH, 5 * dpr, btnBg, btnBorder);
   ctx.font = `600 ${11 * dpr}px ui-sans-serif, system-ui, sans-serif`;
-  ctx.fillStyle = "#e8eefc";
+  ctx.fillStyle = btnText;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("⟲ Сброс", resetBtnX + resetW / 2, hudTop + btnH / 2);
 
   // Bottom interactive navigation hint
   ctx.font = `${10 * dpr}px ui-sans-serif, system-ui, sans-serif`;
-  ctx.fillStyle = "rgba(149, 163, 191, 0.85)";
+  ctx.fillStyle = hintColor;
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
   ctx.fillText("🔍 Перетаскивание мышью · Колёсико: зум · Двойной клик: сброс", W - 18 * dpr, H - 10 * dpr);

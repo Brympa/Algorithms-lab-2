@@ -19,6 +19,7 @@ builder.Services.AddSingleton(fractals);
 builder.Services.AddSingleton(team);
 builder.Services.AddSingleton(hanoi);
 builder.Services.AddSingleton<CatalogState>();
+builder.Services.AddScoped<ThemeService>();
 builder.Services.AddScoped<HanoiPlaybackService>();
 builder.Services.AddScoped<CanvasRenderService>();
 builder.Services.AddScoped<HanoiCanvasService>();

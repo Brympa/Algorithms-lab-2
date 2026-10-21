@@ -5,8 +5,18 @@ export function createHanoi(canvas) {
   if (!canvas) return;
   const ro = new ResizeObserver(() => draw(canvas));
   ro.observe(canvas);
+  const onThemeChange = () => {
+    if (!canvas || !canvas.isConnected) {
+      window.removeEventListener("themechange", onThemeChange);
+      return;
+    }
+    draw(canvas);
+  };
+  window.addEventListener("themechange", onThemeChange);
+
   canvas.__hanoi = {
     ro,
+    onThemeChange,
     disks: 0,
     moves: new Uint8Array(0),
     index: 0,
@@ -19,6 +29,9 @@ export function createHanoi(canvas) {
 export function disposeHanoi(canvas) {
   if (!canvas || !canvas.__hanoi) return;
   if (canvas.__hanoi.ro) canvas.__hanoi.ro.disconnect();
+  if (canvas.__hanoi.onThemeChange) {
+    window.removeEventListener("themechange", canvas.__hanoi.onThemeChange);
+  }
   canvas.__hanoi = null;
 }
 
@@ -51,10 +64,17 @@ export function draw(canvas) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+
   // soft stage background
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "rgba(91,140,255,0.08)");
-  g.addColorStop(1, "rgba(124,255,203,0.04)");
+  if (isLight) {
+    g.addColorStop(0, "rgba(37, 99, 235, 0.05)");
+    g.addColorStop(1, "rgba(5, 150, 105, 0.02)");
+  } else {
+    g.addColorStop(0, "rgba(91, 140, 255, 0.08)");
+    g.addColorStop(1, "rgba(124, 255, 203, 0.04)");
+  }
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
@@ -86,19 +106,19 @@ export function draw(canvas) {
   const pegX = [margin + areaW * 0.16, margin + areaW * 0.5, margin + areaW * 0.84];
 
   // base
-  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  ctx.fillStyle = isLight ? "rgba(15, 23, 42, 0.1)" : "rgba(255, 255, 255, 0.08)";
   roundRect(ctx, margin, baseY, areaW, 12 * dpr, 6 * dpr);
   ctx.fill();
 
   // pegs
   for (let p = 0; p < 3; p++) {
-    ctx.fillStyle = "rgba(255,255,255,0.16)";
+    ctx.fillStyle = isLight ? "rgba(15, 23, 42, 0.18)" : "rgba(255, 255, 255, 0.16)";
     roundRect(ctx, pegX[p] - pegW / 2, baseY - pegH, pegW, pegH, pegW / 2);
     ctx.fill();
 
     // label
-    ctx.fillStyle = "rgba(154,168,192,0.85)";
-    ctx.font = `${12 * dpr}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.fillStyle = isLight ? "#475569" : "rgba(154, 168, 192, 0.85)";
+    ctx.font = `600 ${12 * dpr}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.fillText(String.fromCharCode(65 + p), pegX[p], baseY + 28 * dpr);
   }
@@ -127,7 +147,7 @@ export function draw(canvas) {
   }
 
   // progress text
-  ctx.fillStyle = "rgba(154,168,192,0.9)";
+  ctx.fillStyle = isLight ? "#475569" : "rgba(154,168,192,0.9)";
   ctx.font = `${11 * dpr}px ui-monospace, monospace`;
   ctx.textAlign = "left";
   ctx.fillText(`ход ${applied} / ${count}`, margin, 20 * dpr);

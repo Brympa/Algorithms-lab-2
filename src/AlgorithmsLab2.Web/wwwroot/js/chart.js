@@ -46,17 +46,44 @@ export function createChart(canvas) {
     }
   };
 
+  const onThemeChange = () => {
+    if (!canvas || !canvas.isConnected) {
+      window.removeEventListener("themechange", onThemeChange);
+      return;
+    }
+    if (canvas.__chart) draw(canvas);
+  };
+  window.addEventListener("themechange", onThemeChange);
+
   canvas.addEventListener("mousemove", onMouseMove);
   canvas.addEventListener("mouseleave", onMouseLeave);
 
   canvas.__chart = {
     ro,
+    onMouseMove,
+    onMouseLeave,
+    onThemeChange,
     xs: new Float32Array(0),
     ys: new Float32Array(0),
     options: null,
     hoverIndex: -1,
     layout: null
   };
+}
+
+export function disposeChart(canvas) {
+  if (!canvas || !canvas.__chart) return;
+  const s = canvas.__chart;
+  if (s.ro) {
+    s.ro.disconnect();
+    s.ro = null;
+  }
+  if (s.onMouseMove) canvas.removeEventListener("mousemove", s.onMouseMove);
+  if (s.onMouseLeave) canvas.removeEventListener("mouseleave", s.onMouseLeave);
+  if (s.onThemeChange) {
+    window.removeEventListener("themechange", s.onThemeChange);
+  }
+  canvas.__chart = null;
 }
 
 export function drawChart(canvas, xBytes, yBytes, options) {
@@ -92,8 +119,10 @@ function draw(canvas) {
   const padT = 32 * dpr;
   const padB = 36 * dpr;
 
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+
   // Background
-  ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+  ctx.fillStyle = isLight ? "rgba(241, 245, 249, 0.45)" : "rgba(0, 0, 0, 0.18)";
   ctx.fillRect(0, 0, W, H);
 
   if (xs.length < 2) {
@@ -130,7 +159,7 @@ function draw(canvas) {
   }
 
   // Grid
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.strokeStyle = isLight ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)";
   ctx.lineWidth = 1 * dpr;
   for (let i = 0; i <= 4; i++) {
     const yy = padT + (plotH * i) / 4;
@@ -145,7 +174,7 @@ function draw(canvas) {
   const yUnit = useSeconds ? "с" : "мс";
 
   // Y-axis tick labels with explicit units (мс / с)
-  ctx.fillStyle = "rgba(154, 168, 192, 0.9)";
+  ctx.fillStyle = isLight ? "#475569" : "rgba(154, 168, 192, 0.9)";
   ctx.font = `${11 * dpr}px ui-monospace, monospace`;
   ctx.textAlign = "right";
   for (let i = 0; i <= 4; i++) {
@@ -164,12 +193,12 @@ function draw(canvas) {
 
   // Y-axis unit caption (right-aligned above tick column to guarantee zero overlap with title)
   ctx.textAlign = "right";
-  ctx.fillStyle = "rgba(0, 229, 163, 0.9)";
+  ctx.fillStyle = isLight ? "#059669" : "rgba(0, 229, 163, 0.9)";
   ctx.font = `600 ${10 * dpr}px ui-sans-serif, system-ui, sans-serif`;
   ctx.fillText(`Время (${yUnit})`, padL - 8 * dpr, padT - 10 * dpr);
 
   // X-axis min and max with parameter N
-  ctx.fillStyle = "rgba(154, 168, 192, 0.95)";
+  ctx.fillStyle = isLight ? "#475569" : "rgba(154, 168, 192, 0.95)";
   ctx.font = `600 ${11 * dpr}px ui-monospace, monospace`;
   ctx.textAlign = "left";
   ctx.fillText(`N = ${minX}`, padL, H - 12 * dpr);
@@ -180,14 +209,14 @@ function draw(canvas) {
   // X-axis center label (only if width permits no collision)
   if (plotW >= 170 * dpr) {
     ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(154, 168, 192, 0.75)";
+    ctx.fillStyle = isLight ? "#64748b" : "rgba(154, 168, 192, 0.75)";
     ctx.font = `600 ${10 * dpr}px ui-sans-serif, system-ui, sans-serif`;
     ctx.fillText("Параметр N", padL + plotW / 2, H - 12 * dpr);
   }
 
   if (opts.title) {
     ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(232, 238, 252, 0.92)";
+    ctx.fillStyle = isLight ? "#0f172a" : "rgba(232, 238, 252, 0.92)";
     ctx.font = `600 ${12 * dpr}px ui-sans-serif, system-ui, sans-serif`;
     let titleStr = opts.title;
     const maxTitleW = W - padL - padR;
@@ -202,8 +231,13 @@ function draw(canvas) {
 
   // Area under line (subtle gradient glow)
   const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-  grad.addColorStop(0, "rgba(79, 140, 255, 0.16)");
-  grad.addColorStop(1, "rgba(79, 140, 255, 0.0)");
+  if (isLight) {
+    grad.addColorStop(0, "rgba(37, 99, 235, 0.12)");
+    grad.addColorStop(1, "rgba(37, 99, 235, 0.0)");
+  } else {
+    grad.addColorStop(0, "rgba(79, 140, 255, 0.16)");
+    grad.addColorStop(1, "rgba(79, 140, 255, 0.0)");
+  }
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.moveTo(sx(xs[0]), padT + plotH);
@@ -217,13 +251,16 @@ function draw(canvas) {
   path.moveTo(sx(xs[0]), sy(yv[0]));
   for (let i = 1; i < xs.length; i++) path.lineTo(sx(xs[i]), sy(yv[i]));
 
-  ctx.strokeStyle = opts.lineColor || "#4f8cff";
+  const defaultLineColor = isLight ? "#2563eb" : "#4f8cff";
+  const defaultPointColor = isLight ? "#059669" : "#00e5a3";
+
+  ctx.strokeStyle = (opts.lineColor && opts.lineColor !== "#4f8cff") ? opts.lineColor : defaultLineColor;
   ctx.lineWidth = 2 * dpr;
   ctx.lineJoin = "round";
   ctx.stroke(path);
 
   // Points
-  const pointColor = opts.pointColor || "#00e5a3";
+  const pointColor = (opts.pointColor && opts.pointColor !== "#00e5a3") ? opts.pointColor : defaultPointColor;
   ctx.fillStyle = pointColor;
   for (let i = 0; i < xs.length; i++) {
     ctx.beginPath();
@@ -242,7 +279,7 @@ function draw(canvas) {
     // Dashed crosshair guidelines
     ctx.save();
     ctx.setLineDash([4 * dpr, 4 * dpr]);
-    ctx.strokeStyle = "rgba(79, 140, 255, 0.45)";
+    ctx.strokeStyle = isLight ? "rgba(37, 99, 235, 0.45)" : "rgba(79, 140, 255, 0.45)";
     ctx.lineWidth = 1 * dpr;
     ctx.beginPath();
     ctx.moveTo(hx, padT);
@@ -255,7 +292,7 @@ function draw(canvas) {
     // Glow ring
     ctx.beginPath();
     ctx.arc(hx, hy, 7 * dpr, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0, 229, 163, 0.35)";
+    ctx.fillStyle = isLight ? "rgba(5, 150, 105, 0.25)" : "rgba(0, 229, 163, 0.35)";
     ctx.fill();
 
     // Center point
@@ -263,7 +300,7 @@ function draw(canvas) {
     ctx.arc(hx, hy, 4 * dpr, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
-    ctx.strokeStyle = "#00e5a3";
+    ctx.strokeStyle = isLight ? "#059669" : "#00e5a3";
     ctx.lineWidth = 2 * dpr;
     ctx.stroke();
 
@@ -291,12 +328,12 @@ function draw(canvas) {
 
     // Glass card background
     ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+    ctx.shadowColor = isLight ? "rgba(15, 23, 42, 0.14)" : "rgba(0, 0, 0, 0.55)";
     ctx.shadowBlur = 12 * dpr;
     roundRect(ctx, tipX, tipY, tipW, tipH, 6 * dpr);
-    ctx.fillStyle = "rgba(10, 16, 28, 0.94)";
+    ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.97)" : "rgba(10, 16, 28, 0.94)";
     ctx.fill();
-    ctx.strokeStyle = "rgba(79, 140, 255, 0.65)";
+    ctx.strokeStyle = isLight ? "rgba(37, 99, 235, 0.45)" : "rgba(79, 140, 255, 0.65)";
     ctx.lineWidth = 1.2 * dpr;
     ctx.stroke();
     ctx.restore();
@@ -304,14 +341,14 @@ function draw(canvas) {
     // Tooltip texts
     ctx.textAlign = "left";
     ctx.font = `700 ${11 * dpr}px ui-sans-serif, system-ui, sans-serif`;
-    ctx.fillStyle = "#7ab2ff";
+    ctx.fillStyle = isLight ? "#1d4ed8" : "#7ab2ff";
     ctx.fillText(titleText, tipX + 10 * dpr, tipY + 16 * dpr);
 
     ctx.font = `${11 * dpr}px ui-monospace, monospace`;
-    ctx.fillStyle = "#e8eefc";
+    ctx.fillStyle = isLight ? "#0f172a" : "#e8eefc";
     ctx.fillText(nText, tipX + 10 * dpr, tipY + 33 * dpr);
 
-    ctx.fillStyle = "#00e5a3";
+    ctx.fillStyle = isLight ? "#047857" : "#00e5a3";
     ctx.fillText(msText, tipX + 10 * dpr, tipY + 49 * dpr);
   }
 

@@ -8,6 +8,34 @@
     <base href="/" />
     <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="css/app.css" />
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem("theme");
+                var theme = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+                document.documentElement.setAttribute("data-theme", theme);
+            } catch (_) {
+                document.documentElement.setAttribute("data-theme", "dark");
+            }
+        })();
+
+        window.themeManager = {
+            getTheme: function () {
+                return document.documentElement.getAttribute("data-theme") || "dark";
+            },
+            setTheme: function (theme) {
+                document.documentElement.setAttribute("data-theme", theme);
+                try { localStorage.setItem("theme", theme); } catch (_) {}
+                window.dispatchEvent(new CustomEvent("themechange", { detail: { theme: theme } }));
+            },
+            toggleTheme: function () {
+                var current = this.getTheme();
+                var next = current === "light" ? "dark" : "light";
+                this.setTheme(next);
+                return next;
+            }
+        };
+    </script>
     <script type="importmap"></script>
 </head>
 
